@@ -1,6 +1,6 @@
 ---
-title: "after_riccardo_analysis"
-author: "Signe Kløve Kjær"
+title: "Models"
+author: "MM"
 date: "13/5/2019"
 output: word_document
 ---
@@ -9,7 +9,7 @@ output: word_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Preparing mark down
+#Preparing markdown
 ```{r setting working directory}
 #set working directory 
 setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
@@ -22,176 +22,141 @@ library(pacman)
 p_load(lme4, lmerTest, brms, tidyverse, stringi, tm, ggrepel, ggbeeswarm)
 ```
 
-##PREPARE POOLING DATA
-
+#Loading sensitivity scores (wide)
 ```{r load data}
 #read csv files with estimates
-pool_estimates <- read.csv("pooling_individual_wide.csv")
+data <- read.csv("data_disagree_long_sensitivity.csv")[,2:14]
+data_long <- read.csv("data_long_sensitivity.csv")[,2:14]
+```
+
+#Data processing
+```{r}
+#Changing the format of the leader and follower gender
+data$Follower_gender <- as.factor(data$Follower_gender)
+data$Leader_gender <- as.factor(data$Leader_gender)
 ```
 
 
-```{r clean pooling data}
+#Modelling primary models
+##The full model with skill difference (full)
+```{r}
+#Get priors
+get_prior(leader_behaviour ~ 0 + skill_dif * Leader_gender * Follower_gender + (1 + skill_dif:Follower_gender | Subject ), data = data, family = "bernoulli")
 
-#Change names for sensitivity slopes
-names(pool_estimates)[names(pool_estimates) == 'Slope_ranef_fixef_estimate_answer_left'] <- 'Est_dif_blue_left_answer'
+#Defining priors
+prior_full <- c(
+  prior(normal(0,.2),class="b"),
+  prior(normal(0,.1),class="sd")
+)
 
-names(pool_estimates)[names(pool_estimates) == 'Slope_ranef_fixef_estimate_answer_right'] <- 'Est_dif_blue_right_answer'
+#prior predictive check
+prior_check_full <- brm(leader_behaviour ~ 0 + skill_dif * Leader_gender * Follower_gender + (0 + skill_dif:Follower_gender | Subject ), prior = prior_full, data = data, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
 
-names(pool_estimates)[names(pool_estimates) == 'Slope_ranef_fixef_estimate_correct_left'] <- 'Est_dif_blue_left_correct'
+pp_check(prior_check_full, nsamples = 100)
 
-names(pool_estimates)[names(pool_estimates) == 'Slope_ranef_fixef_estimate_correct_right'] <- 'Est_dif_blue_right_correct'
+# Model w skill difference
+m_full <- brm(
+  leader_behaviour ~ 0 + skill_dif * Leader_gender * Follower_gender + (1 + skill_dif:Follower_gender | Subject),
+  data = data,
+  prior = prior_full,
+  sample_prior=T,
+  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
+  seed = 123, # Adding a seed makes results reproducible.
+  cores=2,
+  chains=2,
+  control = list(adapt_delta = 0.9) #only for answer model, due to Eff.Sample
+) 
 
-
-#Create chosen-leader-column 
-pool_estimates$chosen_leader <- ifelse(pool_estimates$right_answer == pool_estimates$left_answer, "Agree", 0) #create a column that sorts out all the agreed trials
-
-#Create variable, which determines the chosen leader
-pool_estimates$chosen_leader[pool_estimates$chosen_leader == 0 & pool_estimates$Joint_right == 0] <- "Left_lead"
-pool_estimates$chosen_leader[pool_estimates$chosen_leader == 0 & pool_estimates$Joint_left == 0] <- "Right_lead"
-
-#create column that specifies the gender of the leader
-pool_estimates$Leader_gender <- 0
-pool_estimates$Leader_gender <- ifelse(pool_estimates$chosen_leader == "Left_lead", as.character(pool_estimates$Gender_left), as.character(pool_estimates$Gender_right))
-pool_estimates$Leader_gender[pool_estimates$chosen_leader == "Agree"] <- NA
-
-#create column that specifies the gender of the follower
-pool_estimates$Follower_gender <- 0
-pool_estimates$Follower_gender <- ifelse(pool_estimates$chosen_leader == "Left_lead", as.character(pool_estimates$Gender_right), as.character(pool_estimates$Gender_left))
-pool_estimates$Follower_gender[pool_estimates$chosen_leader == "Agree"] <- NA
-
-
-#create stubborn leader
-pool_estimates$Stubborn_leader <- 0 #Creating column of 0's
-
-pool_estimates$Stubborn_leader[pool_estimates$chosen_leader == "Right_lead" & pool_estimates$joint_answer == pool_estimates$right_answer] <- "stick" #Inserting cases were leader stick for right leader
-pool_estimates$Stubborn_leader[pool_estimates$chosen_leader == "Right_lead" & pool_estimates$joint_answer != pool_estimates$right_answer] <- "surrender" #Inserting cases were leader surrender for right leader
-
-pool_estimates$Stubborn_leader[pool_estimates$chosen_leader == "Left_lead" & pool_estimates$joint_answer == pool_estimates$left_answer] <- "stick" #Inserting cases were leader stick for left leader
-pool_estimates$Stubborn_leader[pool_estimates$chosen_leader == "Left_lead" & pool_estimates$joint_answer != pool_estimates$left_answer] <- "surrender" #Inserting cases were leader surreder for left leader
-
-pool_estimates$Stubborn_leader[pool_estimates$chosen_leader == "Agree"] <- NA #Removing cases were they agree
-
-
-#code leader and follower gender as dummies, 0 = male, 1 = female
-pool_estimates$Leader_gender[pool_estimates$Leader_gender == "Male"] <- 0
-
-pool_estimates$Leader_gender[pool_estimates$Leader_gender == "Female"] <- 1
-
-pool_estimates$Follower_gender[pool_estimates$Follower_gender == "Male"] <- 0
-
-pool_estimates$Follower_gender[pool_estimates$Follower_gender == "Female"] <- 1
-
-
-#Rename stubborn-leader-column
-names(pool_estimates)[names(pool_estimates) == 'Stubborn_leader'] <- 'Surrender'
-
-pool_estimates$Surrender <- as.character(pool_estimates$Surrender)
-
-#dummy code surrender columns, surrender = 1, stick = 0
-pool_estimates$Surrender[pool_estimates$Surrender == "surrender"] <- 1
-
-pool_estimates$Surrender[pool_estimates$Surrender == "stick"] <- 0
-
-pool_estimates$Surrender[pool_estimates$chosen_leader == "Agree"] <- NA
-
-#rename confidence
-names(pool_estimates)[names(pool_estimates) == 'Response_left'] <- 'confidence_left'
-names(pool_estimates)[names(pool_estimates) == 'Response_right'] <- 'confidence_right'
-
-pool_data <- pool_estimates
+summary(m_full)
 ```
 
+###Plotting the model transition, full
+```{r}
+#Defining paths for plots
+trans_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/transition/trans_plot_full.jpeg")
+pp_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/pp_check/pp_plot_full.jpeg")
 
-```{r calculate skill difference}
+marginal_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/marginal/marginal_plot_full.jpeg")
 
-#Calculating skill difference
+#Marginal effects plot: Plotted and saved
+jpeg(file=marginal_path)
+print(marginal_effects(m_full))
+dev.off()
+  
+#transition plot: Plotted and saved
+jpeg(file=trans_path)
+print(plot(m_full))
+dev.off()
 
-#for answer
-pool_estimates$skill_dif_answer <- 0 #Creating column of 0
-pool_estimates$skill_dif_answer <- ifelse(pool_estimates$chosen_leader == "Left_lead", pool_estimates$Est_dif_blue_left_answer/pool_estimates$Est_dif_blue_right_answer, pool_estimates$Est_dif_blue_right_answer/pool_estimates$Est_dif_blue_left_answer) #calculating skill difference as a ratio between leader and follower sensitivity
+#pp_check plot: Plotted and saved
+jpeg(file=pp_path)
+print(pp_check(prior_check_full, nsamples = 100))
+dev.off()
 
-pool_estimates$skill_dif_answer[pool_estimates$chosen_leader == "Agree"] <- NA #Insert NAs in all agree trials
+```
 
-#for correct
-pool_estimates$skill_dif_correct <- 0 #Creating column of 0
-pool_estimates$skill_dif_correct <- ifelse(pool_estimates$chosen_leader == "Left_lead", pool_estimates$Est_dif_blue_left_correct/pool_estimates$Est_dif_blue_right_correct, pool_estimates$Est_dif_blue_right_correct/pool_estimates$Est_dif_blue_left_correct) #calculating skill difference as a ratio between leader and follower sensitivity
+##Model without skill difference (basic)
+```{r model without skill difference}
+#Defining priors
+prior_basic <- c(
+  prior(normal(0,.2),class="b"),
+  prior(normal(0,.1),class="sd")
+)
 
-pool_estimates$skill_dif_correct[pool_estimates$chosen_leader == "Agree"] <- NA #Insert NAs in all agree trials
+#prior predictive check
+prior_check_basic <- brm(leader_behaviour ~ 0 + Leader_gender : Follower_gender + (1 + skill_dif:Follower_gender | Subject), prior = prior_basic, data = data, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
+
+pp_check(prior_check_basic, nsamples = 100)
+
+#model without skill difference
+m_basic <- brm(
+  leader_behaviour ~ 0 + Leader_gender : Follower_gender + (1 + skill_dif:Follower_gender | Subject),
+  data = data,
+  prior = prior_basic,
+  sample_prior=T,
+  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
+  seed = 123, # Adding a seed makes results reproducible.
+  chains=2,
+  cores=2,
+  control = list(adapt_delta = 0.9) 
+) 
 
 ```
 
 
-```{r make long format}
-#Subset to left data
-pool_left <- subset(pool_estimates, select = c(GroupNumber, unique_ID_left, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif_answer, confidence_left, Surrender, Est_dif_blue_left_answer, Gender_left, left_answer, Correct_left)) #take all data for left participant
+###Plotting the model transition, basic
+```{r}
+#Defining paths for plots
+trans_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/transition/trans_plot_basic.jpeg")
+pp_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/pp_check/pp_plot_basic.jpeg")
 
-pool_left$skill_dif_answer[pool_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
-pool_left$skill_dif_correct[pool_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
+marginal_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/marginal/marginal_plot_basic.jpeg")
 
-pool_left$Surrender[pool_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
-pool_left$Leader_gender[pool_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
-pool_left$Follower_gender[pool_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
+#Marginal effects plot: Plotted and saved
+jpeg(file=marginal_path)
+print(marginal_effects(m_basic))
+dev.off()
+  
+#transition plot: Plotted and saved
+jpeg(file=trans_path)
+print(plot(m_basic))
+dev.off()
 
-#Subset right data
-pool_right <- subset(pool_estimates, select = c(GroupNumber, unique_ID_right, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif_answer, confidence_right, Surrender, Est_dif_blue_right_answer, Gender_right, right_answer, Correct_right)) #Subsetting right data
-
-pool_right$skill_dif_answer[pool_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
-pool_right$skill_dif_correct[pool_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
-
-pool_right$Surrender[pool_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
-
-pool_right$Leader_gender[pool_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
-
-pool_right$Follower_gender[pool_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
-
-#Renaming the columns to match
-names(pool_left) <- c("GroupNumber", "unique_ID", "dif_blue", "dif_blue_abs", "chosen_leader", "Leader_gender", "Follower_gender", "skill_dif_answer", "confidence", "Surrender", "skill_level", "Gender", "answer", "correct")
-
-names(pool_right) <- c("GroupNumber", "unique_ID", "dif_blue", "dif_blue_abs", "chosen_leader", "Leader_gender", "Follower_gender", "skill_dif_answer", "confidence", "Surrender", "skill_level", "Gender", "answer", "correct")
-
-#Rbinding left and right data
-pool_long <- rbind(pool_left, pool_right)
-pool_long <- pool_long[1:14]
-
-
-names(pool_long)[names(pool_long) == 'unique_ID'] <- 'Subject'
-
-pool_long$Subject <- as.character(pool_long$Subject)
-pool_long$Subject <- tolower(pool_long$Subject)
-
-pool_long$Subject <- str_extract(pool_long$Subject,"[a-z]+")
-
-#Removing all agree trials
-pool_disagree <- na.omit(pool_long)
-
-#Renaming unique_ID column
-names(pool_disagree)[names(pool_disagree) == 'unique_ID'] <- 'Subject'
-
-# #Removing outliers for the answer model
-# pool_disagree_outlier_rem <- subset(pool_disagree, Subject != "14_signekirk")
-# 
-# pool_disagree_outlier_rem$Subject <- as.character(pool_disagree_outlier_rem$Subject)
-# pool_disagree_outlier_rem$Subject <- tolower(pool_disagree_outlier_rem$Subject)
-# 
-# pool_disagree_outlier_rem$Subject <- str_extract(pool_disagree_outlier_rem$Subject,"[a-z]+")
-
-#make confidence absolute 
-#pool_long$Confidence <- abs(pool_long$Confidence)
-
-#remove the groupnumber from subject name to account for within participant variation
-pool_disagree$Subject <- as.character(pool_disagree$Subject)
-pool_disagree$Subject <- tolower(pool_disagree$Subject)
-
-pool_disagree$Subject <- str_extract(pool_disagree$Subject,"[a-z]+")
-
-#scale the skill difference variable 
-pool_disagree$skill_dif_answer <- scale(pool_disagree$skill_dif_answer)
-
+#pp_check plot: Plotted and saved
+jpeg(file=pp_path)
+print(pp_check(prior_check_basic, nsamples = 100))
+dev.off()
 ```
 
-#are men better than women?
-```{r is men better than women regression, include = FALSE}
+#Model comparaison
+```{r}
+waic(m_full, m_basic)
+```
 
+
+#Alternative hypothesis: Are men better than women?
+##Modelling: Are men better than women?
+```{r}
 #Defining priors
 prior_mf <- c(
   prior(normal(0, 0.2),class="Intercept"),
@@ -200,11 +165,15 @@ prior_mf <- c(
   prior(normal(0,0.1), class= "sd", coef = "Intercept", group = "Subject")
 )
 
+#prior predictive check
+prior_check_mf <- brm(answer ~ dif_blue + dif_blue:Gender + (1+dif_blue|Subject), prior = prior_mf, data = data_long, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
+
+pp_check(prior_check_mf, nsamples = 100)
 
 # Model w skill difference
 skill_mf <- brm(
   answer ~ dif_blue + dif_blue:Gender + (1+dif_blue|Subject), 
-  data = pool_long,
+  data = data_long,
   prior = prior_mf,
   family = "bernoulli",
   sample_prior=T,
@@ -215,147 +184,55 @@ skill_mf <- brm(
 
 summary(skill_mf)
 
-prior_mf_correct <- c(
-  prior(normal(0, 0.2),class="Intercept"),
-  prior(normal(0,0.1),class="b")
-  )
+```
 
+##Plotting the model transition
+```{r}
+#Defining paths for plots
+trans_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/transition/trans_plot_mf_skill.jpeg")
+pp_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/pp_check/pp_plot_mf_skill.jpeg")
 
-correct_mf <- brm(
-  correct ~ Gender, 
-  data = pool_long,
-  prior = prior_mf_correct,
-  family = "bernoulli",
-  sample_prior=T,
-  seed = 123, # Adding a seed makes results reproducible.
-  cores=2,
-  chains=2
-) 
+marginal_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/marginal/marginal_plot_mf_skill.jpeg")
 
-summary(correct_mf)
+#Marginal effects plot: Plotted and saved
+jpeg(file=marginal_path)
+print(marginal_effects(skill_mf))
+dev.off()
+  
+#transition plot: Plotted and saved
+jpeg(file=trans_path)
+print(plot(skill_mf))
+dev.off()
 
-
-male <- subset(pool_long, Gender == "Male")
-
-female <- subset(pool_long, Gender == "Female")
-
-table(male$correct)
-table(female$correct)
+#pp_check plot: Plotted and saved
+jpeg(file=pp_path)
+print(pp_check(prior_check, nsamples = 100))
+dev.off()
 
 ```
+
  
+##Hypothesis testing: Men perform better than women
+```{r}
+#Men perform better than women
+hypothesis(skill_mf, "dif_blue:GenderMale>dif_blue")
 
-
-#MODELS
-```{r run the answer model with skill difference}
-#Get priors
-get_prior(Surrender ~ 0 + skill_dif_answer * Leader_gender * Follower_gender + (1 + skill_dif_answer:Follower_gender | Subject ), data = pool_disagree, family = "bernoulli")
-
-#Defining priors
-prior_answer <- c(
-  prior(normal(0,.2),class="b"),
-  prior(normal(0,.1),class="sd")
-)
-
-#prior predictive check
-prior_check_answer <- brm(Surrender ~ 0 + skill_dif_answer * Leader_gender * Follower_gender + (0 + skill_dif_answer:Follower_gender | Subject ), prior = prior_answer, data = pool_disagree, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
-
-pp_check(prior_check_answer, nsamples = 100)
-
-# Model w skill difference
-m_answer <- brm(
-  Surrender ~ 0 + skill_dif_answer * Leader_gender * Follower_gender + (1 + skill_dif_answer:Follower_gender | Subject),
-  data = pool_disagree,
-  prior = prior_answer,
-  sample_prior=T,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123, # Adding a seed makes results reproducible.
-  cores=2,
-  chains=2,
-  control = list(adapt_delta = 0.9) #only for answer model, due to Eff.Sample
-) 
-
-summary(m_answer)
-```
-
-
-
-
-
-
-```{r model without skill difference}
-#Defining priors
-prior_0 <- c(
-  prior(normal(0,.2),class="b"),
-  prior(normal(0,.1),class="sd")
-)
-
-#prior predictive check
-prior_check_0 <- brm(Surrender ~ 0 + Leader_gender : Follower_gender + (1 + skill_dif_answer:Follower_gender | Subject), prior = prior_0, data = pool_disagree, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
-
-pp_check(prior_check_0, nsamples = 100)
-
-#model without skill difference
-m_0 <- brm(
-  Surrender ~ 0 + Leader_gender : Follower_gender + (1 + skill_dif_answer:Follower_gender | Subject),
-  data = pool_disagree,
-  prior = prior_0,
-  sample_prior=T,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123, # Adding a seed makes results reproducible.
-  chains=2,
-  cores=2,
-  control = list(adapt_delta = 0.9) 
-) 
-
-
-m_0.1 <- brm(
-  Surrender ~ 0 + Leader_gender : Follower_gender + ( 0 + Follower_gender | Subject),
-  data = pool_disagree,
-  prior = prior_0,
-  sample_prior=T,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123, # Adding a seed makes results reproducible.
-  chains=2,
-  cores=2,
-  control = list(adapt_delta = 0.9) 
-) 
-
-summary(m_0.1)
-marginal_effects(m_0)
+#More evidence for the alternative hypothesis i.e. women perform better than men
+hypothesis(skill_mf, "dif_blue:GenderMale<dif_blue")
 
 ```
 
 
+#Hypothesis testing: H1, H2 og H3
 
-#MODEL COMPARISON
-
-```{r answer and correct}
-waic(m_answer, m_0)
-
-
-summary(m_0)
+# H1: There is a leader effect: male leaders tend to surrender less than female leaders
+```{r H1}
+#H1: In general male leaders tend to surrender less than female leaders
+hypothesis(m_basic, "(Leader_gender0:Follower_gender0 + Leader_gender0:Follower_gender1)/2 < (Leader_gender1:Follower_gender0 + Leader_gender1:Follower_gender1)/2")
 ```
 
-
-
-#### #### #### #### #### #### HYPOTHESIS TESTING #### #### #### #### #### #### 
-
-
-
-# H1: there is a leader effect: male leaders tend to surrender less than female leaders
-```{r H1: there is a leader effect: male leaders tend to surrender less than female leaders}
-#H1: In general male leader tend to surrender more than female leaders
-
-hypothesis(m_0, "(Leader_gender0:Follower_gender0 + Leader_gender0:Follower_gender1)/2 < (Leader_gender1:Follower_gender0 + Leader_gender1:Follower_gender1)/2")
-
-
-
-```
-
-# H1: plotting
-```{r prepare predictions}
-
+##H1: Plotting
+```{r preparing predictions}
 #create newdata to make predictions from 
 nd <- 
   expand.grid(tibble(
@@ -363,210 +240,81 @@ nd <-
          Leader_gender = factor(0:1) %>% rep(., times = 10),
          Subject = NA))
 
-#predict probabilities for surrender, use fitted to get upper and lower quantile measures in probabilities
-fit <-
-  fitted(m_0, newdata = nd, re_formula = ~ (0 + Follower_gender | Subject )) %>%  # we can use the same nd data from last time
-  as_tibble() %>%
-  bind_cols(nd) 
-
+#Predicting new values from the basic model
 pred <-
-  predict(m_0, newdata = nd, re_formula = ~ (0 + Follower_gender | Subject)) %>%  # we can use the same nd data from last time
+  predict(m_basic, newdata = nd, re_formula = ~ (0 + Follower_gender | Subject)) %>%  # we can use the same nd data from last time
   as_tibble() %>%
   bind_cols(nd)
 
+#Changing the format of the follower and leader gender
 pred$Leader_gender <- as.character(pred$Leader_gender)
 pred$Follower_gender <- as.character(pred$Follower_gender)
-fit$Leader_gender <- as.character(fit$Leader_gender)
-fit$Follower_gender <- as.character(fit$Follower_gender)
 
-
-#Changing the genders
-# fit$Follower_gender[fit$Follower_gender == 0] <- "Male"
-# fit$Follower_gender[fit$Follower_gender == "1"] <- "Female"
-# fit$Leader_gender[fit$Leader_gender == "0"] <- "Male"
-# fit$Leader_gender[fit$Leader_gender == 1] <- "Female"
-# 
-# 
+#Changing the genders from dummy coding
 pred$Follower_gender[pred$Follower_gender == 0] <- "Male"
 pred$Follower_gender[pred$Follower_gender == 1] <- "Female"
 pred$Leader_gender[pred$Leader_gender == 0] <- "Male"
 pred$Leader_gender[pred$Leader_gender == 1] <- "Female"
-
 ```
 
-
 ```{r H1 plot}
+#Creating a rounding function for plots
+rounding <- function(x) sprintf("%.3f", x)
+
 #create the plot
-H1 <- ggplot(pool_disagree, aes(x = Leader_gender, y = Surrender, fill = Leader_gender)) +
+H1 <- ggplot(data, aes(x = Leader_gender, y = leader_behaviour, fill = Leader_gender)) +
   labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "Hypothesis 1") +
   geom_boxplot(aes(x = Leader_gender, Estimate) , data = pred, width = 0.5) + 
   theme(legend.position = "none", panel.grid.minor = element_blank()) + 
   geom_violin(aes(x = Leader_gender, y = Estimate), data = pred, trim = FALSE, width =1, alpha = 0.1) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5))) + 
+  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5)), labels = rounding) + 
   geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_fill_manual(values=c("palegreen3", "gold2"))
-H1
-
-
-
+  scale_fill_manual(values=c("palegreen3", "gold2")) +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 
-
-#H2: there is a follower effect: leaders tend to surrender more to men than to women
+#H2:There is a follower effect: leaders tend to surrender more to men than to women
 ```{r H2: there is a follower effect: leaders tend to surrender more to men than to women }
-
 # H2: There is a follower effect: leaders tend to surrender more to men than to women
-hypothesis(m_0, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
-
-
-
-
+hypothesis(m_basic, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
 ```
 
-# H2: plotting
+##H2: Plotting
 ```{r}
-
 #create the plot
-H2 <- ggplot(pool_disagree, aes(x = Follower_gender, y = Surrender, fill = Follower_gender)) +
+H2 <- ggplot(data, aes(x = Follower_gender, y = leader_behaviour, fill = Follower_gender)) +
   labs(x = "Follower gender", y = "Predicted propensity to surrender", title = "Hypothesis 2") +
   geom_boxplot(aes(x = Follower_gender, Estimate) , data = pred, width = 0.5) + 
   theme(legend.position = "none", panel.grid.minor = element_blank()) + 
   geom_violin(aes(x = Follower_gender, y = Estimate), data = pred, trim = FALSE, width =1, alpha = 0.1) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5))) + 
+  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5)), labels = rounding) + 
   geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_fill_manual(values=c("palegreen3", "gold2"))
-
-H2
-
-
+  scale_fill_manual(values=c("palegreen3", "gold2"))+
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-
+#H3: There is an interaction, males are more discriminative as to their followers gender than females are
 ```{r H3: there is an interaction, males are more discriminative as to their followers gender than females are }
 # H3: There is an interaction: males are more discriminative as to their followers gender than females are
+hypothesis(m_basic, "(Leader_gender0:Follower_gender0 - Leader_gender0:Follower_gender1) > (Leader_gender1:Follower_gender0 - Leader_gender1:Follower_gender1)")
 
-hypothesis(m_0, "(Leader_gender0:Follower_gender0 - Leader_gender0:Follower_gender1) > (Leader_gender1:Follower_gender0 - Leader_gender1:Follower_gender1)")
-
-#tetstststst
-hypothesis(m_0, "(Leader_gender0:Follower_gender0 - Leader_gender1:Follower_gender1) < (Leader_gender1:Follower_gender0 - Leader_gender1:Follower_gender1)")
+#There is more evidence for the contrary, i.e. females are more discriminative as to their followers gender than males are
+hypothesis(m_basic, "(Leader_gender0:Follower_gender0 - Leader_gender1:Follower_gender1) < (Leader_gender1:Follower_gender0 - Leader_gender1:Follower_gender1)")
 ```
 
 
-# H3: plotting
+##H3: plotting
 ```{r}
-
-marginal_effects(m_0)
-```
-
-
-```{r}
-#create the plot
-H3.1 <- ggplot(pool_disagree, aes(x = Leader_gender, y = Surrender, fill = Follower_gender)) +
-  labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "Hypothesis 3 - Boxplot") +
-  geom_boxplot(aes(x = Leader_gender, Estimate, fill = Follower_gender) , data = pred, width = 0.5, alpha = 0.8) + 
-  labs(fill = "Follower gender") +
-  theme(panel.grid.minor = element_blank()) +
-  geom_hline(yintercept=h, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), h))) +
-  scale_fill_manual(values=c("palegreen3", "gold2"))
-
-H3.1
-
-```
-
-
-```{r}
-
-
-
-
-H3.2 <- ggplot(pred, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
+H3 <- ggplot(pred, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
   geom_violin(aes(x = Leader_gender, y = Estimate), data = pred, width = 0.7, alpha = 0.8) + 
   geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5))) + 
+  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5)), labels = rounding) + 
   theme(panel.grid.minor = element_blank()) + 
   labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "Hypothesis 3") + 
   stat_summary(fun.data=mean_sdl, geom="pointrange", color="black", position = position_dodge(width = 0.7), alpha = 0.8) +
   labs(fill = "Follower gender") + 
-  scale_fill_manual(values=c("palegreen3", "gold2"))
-
-
-
-
-H3.2
+  scale_fill_manual(values=c("palegreen3", "gold2"))+
+  theme(plot.title = element_text(hjust = 0.5))
 ```
-
-
-
-50 % linje 
-
-boxplot lægger vægt på outliers 
-
-violin med mean + confidence 
-
-Males tend to underestimate themselves at the same level as females tend to underestimates themselves in relation to their own gender
-  Not really equality bias, as it is not at 50 % - so they do not wiegh their own and their partner as equally good
-  
-  
-  tilføj linjer mellem boxplots
-  
-  
-  men god pointe er at skill-difference har indgået i modellen som om at deltagerne hele tiden ahr alt information om den anden partners evner 
-
-```{r}
-p <- predict(model_1.3, allow_new_levels = T, re_formula = ~ (1 | ID), sample_new_levels = "gaussian", newdata = nd, summary = FALSE)
-
-#as dataframe
-p <- as.data.frame(p)
-
-#make dataframe with diagnosis and predicted estimates 
-diag0 <- subset(p, select = V1)
-
-diag0$diagnosis <- 0
-
-names(diag0) <- c("Estimate", "diagnosis")
-
-diag1 <- subset(p, select = V2)
-
-diag1$diagnosis <- 1
-
-names(diag1) <- c("Estimate", "diagnosis")
-
-pred_data <- rbind(diag0, diag1)
-
-pred_data$diagnosis <- as.factor(pred_data$diagnosis)
-
-#create the plot
-bee <- ggplot(data, aes(x = diagnosis, y = PitchSD_z)) +
-  geom_violin(aes(x = diagnosis, y = Estimate), data = pred_data, trim = FALSE) + 
-  ylim(-3,3) + 
-  geom_quasirandom(alpha = 0.5, colour = "dark red") +
-  labs(x = "diagnosis", y = "Pitch", title = "Flot plot") + 
-  geom_boxplot(aes(x = diagnosis, y = Estimate), data = pred_data, width = 0.12) 
-
-  
-bee
-```
-
-
-
-```{r}
-
-#pool_disagree$Surrender <- as.numeric(pool_disagree$Surrender)
-
-# plotting the fitted regression lines
-ggplot(fit, aes(x = Leader_gender, y = Estimate, col = Follower_gender)) +
-  geom_line() +
-  #geom_point(data=pool_disagree, aes(x=Leader_gender,y=Surrender,color=Follower_gender)) + 
-  xlim(low, high) +
-  geom_smooth(data = fit, aes(y = Estimate, ymin = Q2.5, ymax = Q97.5, fill = Leader_gender),stat = "identity", alpha = 1/4, size = 1/2) 
-
-
-summary(m_answer)
-
-```
-
-
-
 
