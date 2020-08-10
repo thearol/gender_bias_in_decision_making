@@ -33,12 +33,13 @@ for (i in files) {
 #Renaming Kiri's trial
 data_db$SubjectID_left[data_db$SubjectID_left == "25_kk"] <- "25_KK"
 
-#Removing column of x
+#Removing the useless column of X
 data_db <- subset(data_db, select = -c(X))
 
 ```
 
 ```{r make a column with unique group ID}
+#Creating a column with unique group ID's
 data_db$SubjectID_left <- as.character(data_db$SubjectID_left)
 data_db$SubjectID_right <- as.character(data_db$SubjectID_right)
 
@@ -46,7 +47,7 @@ data_db$group_id <- as.character(paste(data_db$SubjectID_left,"_",data_db$Subjec
 ```
 
 ```{r make a column with unique subject ID}
-
+#Creating a column with unique subject ID's
 data_db$SubjectID_left_unique <- as.character(paste(data_db$SubjectID_left,"_",data_db$Round, sep = ""))
 data_db$SubjectID_right_unique <- as.character(paste(data_db$SubjectID_right,"_",data_db$Round, sep = ""))
 
@@ -55,7 +56,7 @@ data_db$SubjectID_right_unique <- as.character(paste(data_db$SubjectID_right,"_"
 
 ```{r difficulty measure for all colors}
 
-#Making column, which expresses difficulty
+#Making a column that expresses difficulty
 data_db <- data_db %>%
   mutate(diff = ifelse(Block == "blå", (Prop_blue_image_2 - Prop_blue_image_1), ifelse(Block == "rød", (Prop_red_image_2 - Prop_red_image_1), ifelse(Block == "grøn", (Prop_green_image_2 - Prop_green_image_1), ifelse(Block == "gul", (Prop_yellow_image_2 - Prop_yellow_image_1), NA)))))
 
@@ -63,11 +64,11 @@ data_db <- data_db %>%
 
 ```{r dummy coding answers: 0 = left picture, 1 = right picture}
 
-#Making a column, which expresses answer of participants, 0 = left picture, 1 = right picture
+#Making a column that expresses the participants' answer, 0 = left picture, 1 = right picture
 data_db$response_right_dummy <- ifelse(data_db$Response_right > 0, 1, 0)
 data_db$response_left_dummy<- ifelse(data_db$Response_left > 0, 1, 0)
 
-#Joining joint answer to one column
+#Joining joint answer to one column; the final decision
 data_db$response_joint_dummy <- data_db$Joint_right+ data_db$Joint_left
 
 #Recoding joint answer to be 0 and 1's, 0 right, 1 left, NA = no leader
@@ -76,52 +77,58 @@ data_db$response_joint_dummy[data_db$response_joint_dummy == -1] <- 0
 
 ```
 
+#Leader and follower
 ```{r dummy code leader and follower}
 
 data_db$chosen_leader <- NA
 
-#create a column that sorts out all the agreed trials
+#Create a column that sorts out all the "agree trials"
 data_db$chosen_leader <- ifelse(data_db$response_right_dummy == data_db$response_left_dummy, "Agree", 0) 
 
-#Create variable, which determines the chosen leader
+#Create a variable that determines the chosen leader
 data_db$chosen_leader[data_db$chosen_leader == 0 & data_db$Joint_right == 0] <- "Left_lead"
 data_db$chosen_leader[data_db$chosen_leader == 0 & data_db$Joint_left == 0] <- "Right_lead"
 
-#create column that specifies the gender of the leader
+#Create column that specifies the gender of the leader
 data_db$Leader_gender <- 0
 data_db$Leader_gender <- ifelse(data_db$chosen_leader == "Left_lead", as.character(data_db$Gender_left), as.character(data_db$Gender_right))
 data_db$Leader_gender[data_db$chosen_leader == "Agree"] <- NA
 
-#create column that specifies the gender of the follower
+#Create column that specifies the gender of the follower
 data_db$Follower_gender <- 0
 data_db$Follower_gender <- ifelse(data_db$chosen_leader == "Left_lead", as.character(data_db$Gender_right), as.character(data_db$Gender_left))
 data_db$Follower_gender[data_db$chosen_leader == "Agree"] <- NA
 
 ```
 
-#Did the leader stick or surrender?
+#Did the leader stick to its own initial answer or surrender to their follower's initial answer?
 ```{r did the leader stick?}
 
-#leader stubbornness
+#Creating column that expresses the leader's behavior
 data_db$leader_behavior <- 0 #Creating column of 0's
 
-data_db$leader_behavior[data_db$chosen_leader == "Right_lead" & data_db$response_joint_dummy == data_db$response_right_dummy] <- "stick" #Inserting cases were leader stick for right leader
+#Inserting cases were leader stick for right leader
+data_db$leader_behavior[data_db$chosen_leader == "Right_lead" & data_db$response_joint_dummy == data_db$response_right_dummy] <- "stick" 
 
-data_db$leader_behavior[data_db$chosen_leader == "Right_lead" & data_db$response_joint_dummy != data_db$response_right_dummy] <- "surrender" #Inserting cases were leader surrender for right leader
+#Inserting cases were leader surrender for right leader
+data_db$leader_behavior[data_db$chosen_leader == "Right_lead" & data_db$response_joint_dummy != data_db$response_right_dummy] <- "surrender" 
 
 
-data_db$leader_behavior[data_db$chosen_leader == "Left_lead" & data_db$response_joint_dummy == data_db$response_left_dummy] <- "stick" #Inserting cases were leader stick for left leader
+#Inserting cases were leader stick for left leader
+data_db$leader_behavior[data_db$chosen_leader == "Left_lead" & data_db$response_joint_dummy == data_db$response_left_dummy] <- "stick" 
 
-data_db$leader_behavior[data_db$chosen_leader == "Left_lead" & data_db$response_joint_dummy != data_db$response_left_dummy] <- "surrender" #Inserting cases were leader surreder for left leader
+#Inserting cases were leader surreder for left leader
+data_db$leader_behavior[data_db$chosen_leader == "Left_lead" & data_db$response_joint_dummy != data_db$response_left_dummy] <- "surrender" 
 
-data_db$leader_behavior[data_db$chosen_leader == "Agree"] <- NA #Removing cases were they agree
+#Replacing agree cases with NA's
+data_db$leader_behavior[data_db$chosen_leader == "Agree"] <- NA 
 
 ```
 
 
 ```{r Add trial variable}
 
-#Creating a trial variable
+#Creating a trial variable in a dataframe; data_j
 n = 1
 p = NULL
  for (p in unique(data_db$SubjectID_left_unique)){
@@ -140,11 +147,12 @@ p = NULL
 
 
 ```{r Filtering data to include only joint decisions}
-#Filtering data to include only joint decisions
+#Filtering data to include only disagree trials/joint decisions
 disagree_db <- na.omit(data_j)
 
 ```
 
+#Write csv-files
 ```{r save clean data files, eval=F}
 
 write.csv(data_db, file = "data_GBDM.csv")
