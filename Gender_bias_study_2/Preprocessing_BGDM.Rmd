@@ -15,7 +15,7 @@ library(pacman)
 p_load(plotly, jpeg, tm, brms, tidyverse, tidybayes, ggplot2, LaplacesDemon, rethinking, tidyr, reshape2, tibble)
 
 #Setting working directory
-setwd("~/gender_bias_in_decision_making")
+setwd("~/gender_bias_in_decision_making/Gender_bias_study_2")
 path_db = ("decision_data/")
 
 #Listing files in path
@@ -99,6 +99,7 @@ data_db$Follower_gender[data_db$chosen_leader == "Agree"] <- NA
 
 ```
 
+#Did the leader stick or surrender?
 ```{r did the leader stick?}
 
 #leader stubbornness
@@ -138,7 +139,6 @@ p = NULL
 ```
 
 
-
 ```{r Filtering data to include only joint decisions}
 #Filtering data to include only joint decisions
 disagree_db <- na.omit(data_j)
@@ -147,8 +147,8 @@ disagree_db <- na.omit(data_j)
 
 ```{r save clean data files, eval=F}
 
-write.csv(data_db, file = "data_db.csv")
-write.csv(disagree_db, file = "disagree_db.csv")
+write.csv(data_db, file = "data_GBDM.csv")
+write.csv(disagree_db, file = "disagree_data_GBDM.csv")
 
 ```
 
