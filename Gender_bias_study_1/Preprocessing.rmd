@@ -19,14 +19,14 @@ library(brms);library(tidyverse); library(tidybayes); library(ggplot2); library(
 #Define path
 ```{r}
 #Defining path
-data_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/Data/") #Kiri
+#data_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/Data/") #Kiri
 
 #Thea
 #setwd("~/SocKultExam")
 #data_path = ("Data/") 
 
 #Signe
-#data_path = ("/Users/signeklovekjaer/Documents/CognitiveScience/4.semester/Social_and_cultural_dynamics_in_cognition/Exam/SocKultExam/Data/")
+data_path = ("/Users/signeklovekjaer/gender_bias_in_decision_making/Gender_bias_study_1/Data/")
 ```
 
 
@@ -49,8 +49,8 @@ for (i in files) {
 ```{r loading data with different amount of trials}
 #Setting different path for extraordinary files
 #kiri_path = ("~/SocKultExam/") #Thea
-kiri_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/kiri/")#Kiri
-#kiri_path = ("/Users/signeklovekjaer/Documents/CognitiveScience/4.semester/Social_and_cultural_dynamics_in_cognition/Exam/SocKultExam/") #Signe
+#kiri_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/kiri/")#Kiri
+kiri_path = ("/Users/signeklovekjaer/gender_bias_in_decision_making/Gender_bias_study_1/kiri/") #Signe
 
 #Listing files in directory
 kiri_files <- list.files(path = kiri_path, pattern = "*.csv") 
@@ -165,7 +165,7 @@ data$Follower_gender[data$chosen_leader == "Agree"] <- NA
 
 ```
 
-#Adding variable: Stick/surrender
+##Adding variable: Stick/surrender
 ```{r Did the leader stick?}
 #leader stubbornness
 data$Stubborn_leader <- 0 #Creating column of 0's
@@ -225,18 +225,19 @@ prior =  c(
 
   
 #Defining paths for plots
-trans_path_pool_indi = file.path("~/SocKultExam/plots/transition/pool/trans_plot_pool_individual.jpeg")
-pp_path_pool_indi = file.path("~/SocKultExam/plots/pp_check/pool/pp_plot_pool_individual.jpeg")
-marginal_path_pool_indi = file.path("~/SocKultExam/plots/marginal/pool/marginal_plot_pool_individual.jpeg")
+trans_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/transition/trans_plot.jpeg")
+pp_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/pp_check/pp_plot.jpeg")
+
+marginal_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/marginal/marginal_plot.jpeg")
 
 
 #Prior predictive check
-prior_check_answer_pool_individual <- brm( answer ~ dif_blue + (dif_blue|unique), prior = prior_answer,
+prior_check <- brm( answer ~ dif_blue + (dif_blue|unique), prior = prior,
            data = ldata, sample_prior = "only",iter = 4000, family = "bernoulli")
 
 
 #Making the model
-m_p <- brm(
+m_sensitivity <- brm(
   answer ~ dif_blue + (1+dif_blue|unique),
   data = ldata,
   prior = prior,
@@ -246,55 +247,82 @@ m_p <- brm(
 
 
 #Marginal effects plot: Plotted and saved
-jpeg(file=marginal_path_pool_indi)
-print(marginal_effects(m_p))
+jpeg(file=marginal_path)
+print(marginal_effects(m_sensitivity))
 dev.off()
   
 #transition plot: Plotted and saved
-jpeg(file=trans_path_pool_indi)
-print(plot(m_p))
+jpeg(file=trans_path)
+print(plot(m_sensitivity))
 dev.off()
 
 #pp_check plot: Plotted and saved
-jpeg(file=pp_path_pool_indi)
-print(pp_check(prior_check_answer_pool_individual, nsamples = 100))
+jpeg(file=pp_path)
+print(pp_check(prior_check, nsamples = 100))
 dev.off()
 
 ```
 
 
-##Saving estimats from sensitivity
+##Saving estimates from sensitivity
 ```{r}
 #Saving the estimates
 
 #Saving random effect for individual 
-pooling_individual_ranef <- as.data.frame(ranef(m_p))[,1:2] #Intercept
-
-pooling_individual_ranef <- cbind(pooling_individual_ranef, as.data.frame(ranef(m_p))[,5:6]) #Slope
+ranef <- as.data.frame(ranef(m_sensitivity))[,1:2] #Intercept
+ranef <- cbind(ranef, as.data.frame(ranef(m_sensitivity))[,5:6]) #Slope
 
 #Adding fixed effects to random effect
-pooling_individual_fixef <- as.data.frame(fixef(m_p)) #Making data frame of fixed effects
+fixef <- as.data.frame(fixef(m_sensitivity)) #Making data frame of fixed effects
 
-pooling_individual$Intercept_ranef_fixef_estimate <- pooling_individual_ranef[, 1] + pooling_individual_fixef[1, 1] #Adding fixef of intercept to ranef of intercept
+sensitivity_scores <-data.frame(matrix(ncol = 0, nrow = 80))
 
-pooling_individual$Slope_ranef_fixef_estimate <- pooling_individual_ranef[, 3] + pooling_individual_fixef[1, 2] #Adding fixef of slope to ranef of slope
+sensitivity_scores$Slope_ranef_fixef_estimate <- ranef[, 3] + fixef[1, 2] #Adding fixef of slope to ranef of slope
 
 
 #Adding rownames
-pooling_individual <- cbind(Row.Names = rownames(pooling_individual_ranef), as.data.frame(pooling_individual))
+sensitivity_scores <- cbind(Row.Names = rownames(ranef), as.data.frame(sensitivity_scores))
 
-write.csv(pooling_individual, file = "pooling_individual.csv")
+write.csv(sensitivity_scores, file = "sensitivity_scores.csv")
+```
+
+#Making a wide format 
+```{r creating wide format, include = FALSE, this does not work}
+
+#Creating two empty columns in data for sensitivity scores
+data$sensitivity_right <- NA
+data$sensitivity_left <- NA
+
+#Looping through sensitivity scores and matching them to the right player
+t = 1
+for (i in sensitivity_scores$Row.Names) {
+  print(i)
+  for (p in data$unique_ID_right) {
+    if(i == p){
+      data$sensitivity_right[data$unique_ID_right == p] = sensitivity_scores$Slope_ranef_fixef_estimate[t]
+    } 
+  }
+  t = t+1
+}
+
+
+#Looping through sensitivity scores and matching them to the left player
+t = 1
+for (i in sensitivity_scores$Row.Names) {
+  print(i)
+  for (p in data$unique_ID_left) {
+    if(i == p){
+      data$sensitivity_left[data$unique_ID_left == p] = sensitivity_scores$Slope_ranef_fixef_estimate[t]
+    } 
+  }
+  t = t+1
+}
 
 ```
 
 
-```{r creating wide format, include = FALSE, this does not work}
-#Merging ldata output with wide data frame
-data$Group <-data$GroupNumber
-
-#Inserting estimates in wide format
-data$Intercept_pooling_rf_left[data$GroupNumber == unique(str_extract(pooling_individual$Row.Names, "\\d"))] <- pooling_individual$Intercept_ranef_fixef_estimate_answer[data$SubjectID_left == removeNumbers(gsub('[_]', '', pooling_individual$Row.Names))]
-
-
+#Write CSV with sensitivity scores and clean data
+```{r}
+write.csv(sensitivity_scores, file = "data_wide_sensitivity.csv")
 ```
 

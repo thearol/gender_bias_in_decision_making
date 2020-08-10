@@ -9,21 +9,17 @@ output: word_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+#Preparing mark down
 ```{r setting working directory}
 #set working directory 
-#setwd("/Users/signeklovekjaer/Documents/CognitiveScience/4.semester/Social_and_cultural_dynamics_in_cognition/Exam/SocKultExam/") #Signe
-setwd("~/SocKultExam") #Thea
-
+setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
+#setwd("~/SocKultExam") #Thea
 ```
 
 ```{r loading libraries}
 #load libraries
 library(pacman)
-p_load(lme4, lmerTest, brms, tidyverse, stringi, tm, ggrepel)
-
-library(ggbeeswarm)
-
-
+p_load(lme4, lmerTest, brms, tidyverse, stringi, tm, ggrepel, ggbeeswarm)
 ```
 
 ##PREPARE POOLING DATA
