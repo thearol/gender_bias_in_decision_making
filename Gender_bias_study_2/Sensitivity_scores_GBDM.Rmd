@@ -545,7 +545,7 @@ disagree_db_long$leader_behavior <- ifelse(disagree_db_long$leader_behavior == "
 ```{r creating CSV}
 
 write.csv(disagree_db_wide, file = "disagree_sensitivity_GBDM_wide_format.csv")
-write.csv(disagree_db_long, file = "disagree_sensitivity_GBDM_long_long_format.csv")
+write.csv(disagree_db_long, file = "disagree_sensitivity_GBDM_long_format.csv")
 
 ```
 

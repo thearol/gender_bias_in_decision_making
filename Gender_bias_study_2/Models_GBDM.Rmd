@@ -13,25 +13,23 @@ p_load(brms, tidyverse, tidybayes, ggplot2, LaplacesDemon, rethinking, tidyr, re
 
 #Setting directory
 ```{r}
-setwd("~/Bachelor-MM-/") #TRS
+setwd("~/gender_bias_in_decision_making/Gender_bias_study_2")
 ```
 
 #Loading data
 ```{r}
-data_ib <- read.csv("implicit_bias/data_ib.csv")[,2:12]
-data_eb <- read.csv("explicit_bias/eb_results.csv")[, 2:6]
-data_db <- read.csv("decision_bias/disagree_sensitivity_db_long.csv")[, 2:44]
-data_db_all <- read.csv("decision_bias/data_db_all.csv")
+data_db <- read.csv("disagree_sensitivity_GBDM_long_format.csv")[, 2:44]
+data_db_all <- read.csv("data_long_format_GBDM.csv")
 ```
 
 
-
 #DECISION BIAS
-Below are models: Firstly, the reconstructon of the model and the results from last year. Secondly, new combinations of the variables with the goal of finding the best model. 
 
-###Analysis from last year (excluding skill difference)
 
-```{r model excluding skill dif, replication of effects from last year, 1}
+###Same analysis as study 1 (excluding skill difference and confidence difference)
+
+#Model 1
+```{r model excluding skill dif}
 
 #Defining priors
 prior_db1 <- c(
@@ -52,6 +50,7 @@ model_db1_prior <- brm(leader_behavior ~ 0 + Leader_gender:Follower_gender + (0 
 pp_check(model_db1_prior, nsamples = 100)
 
 
+#Model 1; excluding skill difference and confidence difference
 model_db1 <- brm(
   leader_behavior ~ 0 + Leader_gender : Follower_gender + ( 0 + skill_dif_roll_c : Follower_gender | SubjectID),
   data = data_db,
@@ -63,14 +62,18 @@ model_db1 <- brm(
   cores=4
   #control = list(adapt_delta = 0.9) 
 ) 
+
+#Model summary and plots
 summary(model_db1)
-
 plot(model_db1)
-
 marginal_effects(model_db1)
 ```
 
-##New models
+
+
+##Alternative models
+
+#Model 2: Full model (including skill difference and confidence difference)
 ```{r full model, 2}
 #Defining priors 
 prior_db2 <- c( 
@@ -90,7 +93,7 @@ model_db2_prior <- brm(leader_behavior ~ 0 + conf_dif_c*skill_dif_roll_c*Leader_
 
 pp_check(model_db2_prior, nsamples = 100)
 
-
+#Model 2; including skill difference and confidence difference
 model_db2 <- brm(leader_behavior ~ 0 + conf_dif_c*skill_dif_roll_c*Leader_gender:Follower_gender + (0 + skill_dif_roll_c:Follower_gender | SubjectID),
   data = data_db,
   prior = prior_db2,
@@ -101,99 +104,18 @@ model_db2 <- brm(leader_behavior ~ 0 + conf_dif_c*skill_dif_roll_c*Leader_gender
   cores=4
   #control = list(adapt_delta = 0.9) 
 ) 
+
+#Model summary and plots
+summary(model_db2)
+plot(model_db2)
 marginal_effects(model_db2)
 
-summary(model_db2) 
-
-plot(model_db2)
-```
-
-
-```{r model for extracting decision bias per ID}
-model_db2_ID <- brm(leader_behavior ~ 1 + Follower_gender + (conf_dif_c+skill_dif_roll_c):Follower_gender + (1 + Follower_gender + (conf_dif_c+skill_dif_roll_c):Follower_gender | SubjectID),
-  data = data_db,
-  prior = prior_db2,
-  sample_prior=T,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123, # Adding a seed makes results reproducible.
-  chains=4,
-  cores=4
-  #control = list(adapt_delta = 0.9) 
-) 
-```
-
-
-
-```{r model without confidence, 3}
-#Defining priors
-prior_db3 <- c(
-  prior(normal(0,.2),class="b"),
-  prior(normal(0,.1),class="sd")
-)
-
-#prior predictive check
-model_db3_prior <- brm(leader_behavior ~ 0 + skill_dif_roll_c*Leader_gender:Follower_gender+ (0 + skill_dif_roll_c:Follower_gender | SubjectID), 
-                       prior = prior_db3, 
-                       data = data_db, 
-                       sample_prior = "only",
-                       iter = 4000, 
-                       family = "bernoulli", 
-                       chains = 2, 
-                       cores = 2)
-
-pp_check(model_db3_prior, nsamples = 100)
-
-
-model_db3 <- brm(leader_behavior ~ 0 +skill_dif_roll_c*Leader_gender:Follower_gender+ (0 + skill_dif_roll_c:Follower_gender | SubjectID),
-  data = data_db,
-  prior = prior_db3,
-  sample_prior=T,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123, # Adding a seed makes results reproducible.
-  chains=4,
-  cores=4
-  #control = list(adapt_delta = 0.9) 
-) 
-summary(model_db3)
-```
-
-```{r model without skill difference, 4}
-#Defining priors
-prior_db4 <- c(
-  prior(normal(0,.2),class="b"),
-  prior(normal(0,.1),class="sd")
-)
-
-#prior predictive check
-model_db4_prior <- brm(leader_behavior ~ 0 + conf_dif_c*Leader_gender:Follower_gender+ (0 + skill_dif_roll_c:Follower_gender | SubjectID), 
-                       prior = prior_db4, 
-                       data = data_db, 
-                       sample_prior = "only",
-                       iter = 4000, 
-                       family = "bernoulli", 
-                       seed = 123,
-                       chains = 2, 
-                       cores = 2)
-
-pp_check(model_db4_prior, nsamples = 100)
-
-
-model_db4 <- brm(leader_behavior ~ 0 +conf_dif_c*Leader_gender:Follower_gender+ (0 + skill_dif_roll_c:Follower_gender | SubjectID),
-  data = data_db,
-  prior = prior_db4,
-  sample_prior=T,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123, # Adding a seed makes results reproducible.
-  chains=4,
-  cores=4
-  #control = list(adapt_delta = 0.9) 
-) 
-summary(model_db4)
 ```
 
 
 
 ##Investigating confidence variable
+#Model 3
 ```{r}
 #add column with absolute response
 data_db_all$Response_abs <- abs(data_db_all$Response)
@@ -206,6 +128,7 @@ prior_db5 <- c(
   prior(normal(0,.5),class="b"),
    prior(normal(0, .1),class="sd")
 )
+
 
 #prior predictive check
 model_db5_prior <- brm(Response_abs ~ Gender*Partner_gender+ (1 | SubjectID), 
@@ -220,7 +143,7 @@ model_db5_prior <- brm(Response_abs ~ Gender*Partner_gender+ (1 | SubjectID),
 
 pp_check(model_db5_prior, nsamples = 100)
 
-
+#Model
 model_db5 <- brm(Response_abs ~ Gender*Partner_gender + (1 | SubjectID),
   data = data_db_all,
   prior = prior_db5,
@@ -231,14 +154,20 @@ model_db5 <- brm(Response_abs ~ Gender*Partner_gender + (1 | SubjectID),
   cores=4,
   control = list(adapt_delta = 0.9999) 
 ) 
+
+#Model summary and plots
+summary(model_db5)
+plot(model_db5)
 marginal_effects(model_db5)
 
-plot(model_db5)
-summary(model_db5)
 
 ```
 
+
+
 ##Investigating skill difference in relation to gender
+
+#Model 1.1
 ```{r is men better than women regression, include = FALSE}
 
 #Defining priors
@@ -274,14 +203,15 @@ model_db6 <- brm(
   cores=4,
   chains=4
 ) 
-plot(model_db6)
 
+#Model summary and plots
 summary(model_db6)
-
+plot(model_db6)
 marginal_effects(model_db6)
+
 ```
 
-##Waic
+##WAIC
 ```{r waic}
 waic <- waic(model_db1, model_db2)
 
@@ -289,73 +219,41 @@ waic
 
 ```
 
+
+
 ## Hypothesis testing
 
+##H1.1.1 Females perform worse than males do in the task
 
-##H1.1.1Are men better than women? 
 ```{r}
 #model db6 with star
 hypothesis(model_db6, "diff < (diff+diff:GenderMale)")
 
 ```
 
-
-##H1.5.2 Are females more discriminative towards their partner gender in terms of confidence?
-```{r}
-#model db5 
-hypothesis(model_db5, "Partner_genderMale = (GenderMale + GenderMale:Partner_genderMale)")
-
-
-hypothesis(model_db5, "(Intercept - (Intercept + Partner_genderMale)) > ((Intercept + GenderMale) -  (Intercept + GenderMale:Partner_genderMale))")
-
-
-```
-
-##H1.5.1 Males generally express higher confidence than females
+##H3.1 Males generally express higher confidence than females
 
 ```{r}
 #model db5
 hypothesis(model_db5, "((Intercept + (Intercept + Partner_genderMale)) / 2) < (((Intercept + GenderMale) + (Intercept + GenderMale:Partner_genderMale))/2)")
 ```
 
-##H1.1.4; Males exploit the information given by the confidence of their partner more than females, when making a final decision
+
+##H3.2 Females and males are equally affected ny their partner's gender in terms of how they express their own confidence
+
 ```{r}
-#testing this hypothsis with model_db2
-hypothesis(model_db2, "((conf_dif_c:Leader_genderFemale:Follower_genderFemale + conf_dif_c:Leader_genderFemale:Follower_genderMale)/2) = ( (conf_dif_c:Leader_genderMale:Follower_genderFemale + conf_dif_c:Leader_genderMale:Follower_genderMale)/2) ")
+#model db5 
+hypothesis(model_db5, "Partner_genderMale = (GenderMale + GenderMale:Partner_genderMale)")
 
-hypothesis(model_db2, "((conf_dif_c:Leader_genderFemale:Follower_genderFemale + conf_dif_c:Leader_genderFemale:Follower_genderMale)/2) > ( (conf_dif_c:Leader_genderMale:Follower_genderFemale + conf_dif_c:Leader_genderMale:Follower_genderMale)/2) ")
-
-```
-
-##H1.1.5; Females are more discriminative to their follower's gender in terms of the degree to which they exploit the information given by their partner's confidence than males
-```{r}
-hypothesis(model_db2, "(conf_dif_c:Leader_genderFemale:Follower_genderMale - conf_dif_c:Leader_genderFemale:Follower_genderFemale) = ( conf_dif_c:Leader_genderMale:Follower_genderMale - conf_dif_c:Leader_genderMale:Follower_genderFemale) ")
-
-
-hypothesis(model_db2, "(conf_dif_c:Leader_genderFemale:Follower_genderMale - conf_dif_c:Leader_genderFemale:Follower_genderFemale) > ( conf_dif_c:Leader_genderMale:Follower_genderMale - conf_dif_c:Leader_genderMale:Follower_genderFemale) ")
+#testing an alternative hypothesis with direction: 
+hypothesis(model_db5, "(Intercept - (Intercept + Partner_genderMale)) > ((Intercept + GenderMale) -  (Intercept + GenderMale:Partner_genderMale))")
 
 
 ```
 
 
-##Bruges ikke: Males exploit the information given by the skill of their partner more than females, when making a final decision
-```{r}
-#testing this hypothsis with model_db2
-hypothesis(model_db2, "((skill_dif_c:Leader_genderFemale:Follower_genderFemale + skill_dif_c:Leader_genderFemale:Follower_genderMale)/2) > ( (skill_dif_c:Leader_genderMale:Follower_genderFemale + skill_dif_c:Leader_genderMale:Follower_genderMale)/2) ")
+###Hypothesis testing with model 1
 
-```
-
-##Bruges ikke: Females are more discriminative to their follower's gender in terms of the degree to which they exploit the information given by their partner's skill than males
-```{r}
-
-hypothesis(model_db2, "(skill_dif_c:Leader_genderFemale:Follower_genderMale - skill_dif_c:Leader_genderFemale:Follower_genderFemale) < ( skill_dif_c:Leader_genderMale:Follower_genderMale - skill_dif_c:Leader_genderMale:Follower_genderFemale) ")
-
-
-```
-
-
-
-###For the simple model (excluding skill difference and confidence difference)
 H1: there is a leader effect: male leaders tend to surrender less than female leaders
 ```{r H1: there is a leader effect: male leaders tend to surrender less than female leaders}
 #H1: In general male leader tend to surrender less than female leaders
@@ -382,15 +280,9 @@ hypothesis(model_db1, "(Leader_genderMale:Follower_genderMale - Leader_genderMal
 ```
 
 
-###For the complex model
+###Hypothesis testing with model 2
+
 ```{r}
-#H1.1: Leaders are less prone to surrender as a product of higher confidence difference i.e. the more higher confidence the leader has and lower confidence the follower has the less prone the leader is to surrender
-
-hypothesis(model_db2, "conf_dif < 0")
-
-#H1.2: Leaders are less prone to surrender as a product of higher skill difference i.e. the more higher skill the leader has and lower skill the follower has the less prone the leader is to surrender
-
-hypothesis(model_db2, "skill_dif < 0")
 
 #H1.3 In general male leader tend to surrender less than female leaders
 
@@ -410,10 +302,7 @@ hypothesis(model_db2, "(Leader_genderMale:Follower_genderMale - Leader_genderMal
 
 #Plotting
 
-##Old model
-
-Model_db1
-Leader behavior ~ 0 + Leader gender:Follower gender + (0 + skill difference : Follower gender | Subject)
+##Model 1
 
 
 ```{r}
