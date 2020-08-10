@@ -1,6 +1,6 @@
 ---
-title: "DataCleaning"
-author: "Signe Kløve Kjær"
+title: "Preprocessing"
+author: "MM"
 date: "2/5/2019"
 output: word_document
 ---
@@ -163,22 +163,49 @@ data$Follower_gender <- 0
 data$Follower_gender <- ifelse(data$chosen_leader == "Left_lead", as.character(data$Gender_right), as.character(data$Gender_left))
 data$Follower_gender[data$chosen_leader == "Agree"] <- NA
 
+#Dummycoding leader gender and follower gender, male = 0, female = 1
+data$Leader_gender[data$Leader_gender == "Male"] <- 0
+data$Leader_gender[data$Leader_gender == "Female"] <- 1
+data$Follower_gender[data$Follower_gender == "Male"] <- 0
+data$Follower_gender[data$Follower_gender == "Female"] <- 1
+
 ```
 
-##Adding variable: Stick/surrender
+##Adding variable: Leader behaviour
 ```{r Did the leader stick?}
-#leader stubbornness
-data$Stubborn_leader <- 0 #Creating column of 0's
+#Creating column of 0's
+data$leader_behaviour <- 0 
 
-data$Stubborn_leader[data$chosen_leader == "Right_lead" & data$joint_answer == data$right_answer] <- "stick" #Inserting cases were leader stick for right leader
-data$Stubborn_leader[data$chosen_leader == "Right_lead" & data$joint_answer != data$right_answer] <- "surrender" #Inserting cases were leader surrender for right leader
+#Inserting cases were leader stick for right leader
+data$leader_behaviour[data$chosen_leader == "Right_lead" & data$joint_answer == data$right_answer] <- "stick" 
 
-data$Stubborn_leader[data$chosen_leader == "Left_lead" & data$joint_answer == data$left_answer] <- "stick" #Inserting cases were leader stick for left leader
-data$Stubborn_leader[data$chosen_leader == "Left_lead" & data$joint_answer != data$left_answer] <- "surrender" #Inserting cases were leader surreder for left leader
+#Inserting cases were leader surrender for right leader
+data$leader_behaviour[data$chosen_leader == "Right_lead" & data$joint_answer != data$right_answer] <- "surrender" 
 
-data$Stubborn_leader[data$chosen_leader == "Agree"] <- NA #Removing cases were they agree
+#Inserting cases were leader stick for left leader
+data$leader_behaviour[data$chosen_leader == "Left_lead" & data$joint_answer == data$left_answer] <- "stick" 
+
+#Inserting cases were leader surreder for left leader
+data$leader_behaviour[data$chosen_leader == "Left_lead" & data$joint_answer != data$left_answer] <- "surrender" 
+
+#Removing cases were they agree
+data$leader_behaviour[data$chosen_leader == "Agree"] <- NA 
+
+#dummycode leader behaviour , surrender = 1, stick = 0
+data$leader_behaviour[data$leader_behaviour == "surrender"] <- 1
+
+data$leader_behaviour[data$leader_behaviour == "stick"] <- 0
 
 ```
+
+##Adding variable: Confidence
+```{r}
+#rename confidence
+names(data)[names(data) == 'Response_left'] <- 'confidence_left'
+names(data)[names(data) == 'Response_right'] <- 'confidence_right'
+
+```
+
 
 #Sensitivity scores, partial pooling
 We need one column containing answer from both left and right in order to allow pooling between all participants
@@ -225,10 +252,10 @@ prior =  c(
 
   
 #Defining paths for plots
-trans_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/transition/trans_plot.jpeg")
-pp_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/pp_check/pp_plot.jpeg")
+trans_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/transition/trans_plot_sensitivity.jpeg")
+pp_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/pp_check/pp_plot_sensitivity.jpeg")
 
-marginal_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/marginal/marginal_plot.jpeg")
+marginal_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/marginal/marginal_plot_sensitivity.jpeg")
 
 
 #Prior predictive check
@@ -320,9 +347,89 @@ for (i in sensitivity_scores$Row.Names) {
 
 ```
 
+#Adding variable: Skill difference
+```{r calculate skill difference}
+
+#Calculating skill difference
+data$skill_dif <- 0 #Creating column of 0
+data$skill_dif <- ifelse(data$chosen_leader == "Left_lead", data$sensitivity_left/data$sensitivity_right, data$sensitivity_right/data$sensitivity_left) #calculating skill difference as a ratio between leader and follower sensitivity
+
+#Insert NAs in all agree trials
+data$skill_dif[data$chosen_leader == "Agree"] <- NA 
+```
+
+#Making long format
+##Subsetting left data
+```{r}
+#Subset to left data
+data_left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, confidence_left, leader_behaviour, sensitivity_left, Gender_left, left_answer)) #take all data for left participant
+
+data_left$skill_dif[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
+
+data_left$leader_behaviour[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
+data_left$Leader_gender[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
+data_left$Follower_gender[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
+
+```
+
+##Subsetting right data
+```{r}
+#Subset right data
+data_right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, confidence_right, leader_behaviour, sensitivity_right, Gender_right, right_answer)) #Subsetting right data
+
+data_right$skill_dif[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
+
+data_right$leader_behaviour[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
+
+data_right$Leader_gender[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
+
+data_right$Follower_gender[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
+
+```
+
+##Merging data frames
+```{r make long format}
+#Renaming the columns to match
+names(data_left) <- c("GroupNumber", "Subject", "dif_blue", "dif_blue_abs", "chosen_leader", "Leader_gender", "Follower_gender", "skill_dif", "confidence", "leader_behaviour", "skill_level", "Gender", "answer")
+
+names(data_right) <- c("GroupNumber", "Subject", "dif_blue", "dif_blue_abs", "chosen_leader", "Leader_gender", "Follower_gender", "skill_dif", "confidence", "leader_behaviour", "skill_level", "Gender", "answer")
+
+#Rbinding left and right data
+data_long <- rbind(data_left, data_right)
+
+```
+
 
 #Write CSV with sensitivity scores and clean data
 ```{r}
-write.csv(sensitivity_scores, file = "data_wide_sensitivity.csv")
+write.csv(data_long, file = "data_long_sensitivity.csv")
+```
+
+
+#Removing agree-trials
+```{r}
+#Removing all agree trials
+data_disagree_long <- na.omit(data_long)
+
+```
+
+#Cleaning the long data
+```{r}
+#remove the groupnumber from subject name to account for within participant variation
+data_disagree_long$Subject <- as.character(data_disagree_long$Subject)
+data_disagree_long$Subject <- tolower(data_disagree_long$Subject)
+
+data_disagree_long$Subject <- str_extract(data_disagree_long$Subject,"[a-z]+")
+
+#scale the skill difference variable 
+data_disagree_long$skill_dif <- scale(data_disagree_long$skill_dif)
+
+
+```
+
+
+#Write CSV with sensitivity scores and clean data, only disagree
+```{r}
+write.csv(data_disagree_long, file = "data_disagree_long_sensitivity.csv")
 ```
 
