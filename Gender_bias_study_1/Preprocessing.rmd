@@ -19,7 +19,7 @@ library(brms);library(tidyverse); library(tidybayes); library(ggplot2); library(
 #Define path
 ```{r}
 #Defining path
-data_path = ("~/SocKultExam/Data/") #Kiri
+data_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/Data/") #Kiri
 
 #Thea
 #setwd("~/SocKultExam")
@@ -49,7 +49,7 @@ for (i in files) {
 ```{r loading data with different amount of trials}
 #Setting different path for extraordinary files
 #kiri_path = ("~/SocKultExam/") #Thea
-kiri_path = ("~/SocKultExam/kiri/")#Kiri
+kiri_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/kiri/")#Kiri
 #kiri_path = ("/Users/signeklovekjaer/Documents/CognitiveScience/4.semester/Social_and_cultural_dynamics_in_cognition/Exam/SocKultExam/") #Signe
 
 #Listing files in directory
@@ -76,7 +76,6 @@ data <- rbind(data, kiri_data)
 
 #Data cleaning
 ```{r cleaning data, include = FALSE}
-
 #Removing column of x
 data <- subset(data, select = -c(X))
 
@@ -181,417 +180,10 @@ data$Stubborn_leader[data$chosen_leader == "Agree"] <- NA #Removing cases were t
 
 ```
 
-```{r Plotting the effect of stick or surrender, leader and follower gender}
-#Filtering data to include only joint decisions
-disagree_data <- na.omit(data)
-
-#Making one column specifying the leader and follower gender
-disagree_data$Leader_Follower <- paste("Leader:", disagree_data$Leader_gender, "_Follower:", disagree_data$Follower_gender, sep = "")
-
-#Recoding stick to 0 and 1, stick = 1, 0 = surrender
-disagree_data$stick <- ifelse(disagree_data$Stubborn_leader == "stick", 1, 0)
-
-#Plotting the count 
-ggplot(data = disagree_data, aes(Stubborn_leader, fill = Stubborn_leader)) +
-  facet_grid(~Leader_Follower) +
-  geom_histogram(stat = "count")
-
-```
-
-Bayesian tutorial on logistic regression: https://www.jamesrrae.com/post/bayesian-logistic-regression-using-brms-part-1/
-
-#NO POOLING
-
-###Individual performance
-
-```{r logistic regression using wide format, individual left}
-
-###LEFT
-
-#Getting priors
-get_prior(left_answer ~ dif_blue, data = data, family = "bernoulli")
-get_prior(Correct_left ~ 0 +dif_blue_abs, data = data, family = "bernoulli")
-
-#Making a number of iterations variable
-n = 1
-
-###Making a loop for individual slope
-for (i in unique(data$unique_ID_left)){
-  data_i <- filter(data, unique_ID_left == i) #Choosing temporary data
-  
-  #Defining paths for plots
-  trans_left_path = file.path("~/SocKultExam/plots/transition/left/", paste("trans_left_plot_", i, ".jpeg", sep = ""))
-  pp_left_path = file.path("~/SocKultExam/plots/pp_check/left/", paste("pp_left_plot_",i, ".jpeg", sep = ""))
-  marginal_left_path = file.path("~/SocKultExam/plots/marginal/left/", paste("marginal_left_plot_", i, ".jpeg", sep = ""))
-  #...and for correct
-  correct_trans_left_path = file.path("~/SocKultExam/plots/correct_transition/left/", paste("correct_trans_left_plot_", i, ".jpeg", sep = ""))
-  correct_pp_left_path = file.path("~/SocKultExam/plots/correct_pp_check/left/", paste("correct_pp_left_plot_",i, ".jpeg", sep = ""))
-  correct_marginal_left_path = file.path("~/SocKultExam/plots/correct_marginal/left/", paste("correct_marginal_left_plot_", i, ".jpeg", sep = ""))
-  
-  #Defining priors
-  prior =  c(
-  prior(normal(0,0.17), class = "Intercept"),  #Why does this not work? 
-  prior(normal(0,0.125), class = "b", coef = "dif_blue")
-  )
-  
-  #...and for correct
-  correct_prior =  c(
-  prior(normal(0,0.25), class = "b", coef = "dif_blue_abs")
-  )
-  
-  
-  #Prior predictive check
-  prior_check <- brm( left_answer ~ dif_blue, prior = prior,
-           data = data_i, sample_prior = "only",iter = 4000, family = "bernoulli")
-  
-    #Prior predictive check
-  correct_prior_check <- brm(Correct_left ~ 0 + dif_blue_abs, prior = correct_prior,
-           data = data_i, sample_prior = "only",iter = 4000, family = "bernoulli")
- 
-  #Making the model - using answer
-  m <- brm(
-    left_answer ~ dif_blue,
-    data = data_i,
-    prior = prior,
-    family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-    seed = 123 # Adding a seed makes results reproducible.
-  ) 
- 
-  
-  #Making the model - using correctness
-  m_c <- brm(
-    Correct_left ~ 0 + dif_blue_abs,
-    data = data_i,
-    prior = correct_prior,
-    family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-    seed = 123 # Adding a seed makes results reproducible.
-  ) 
- 
-  
-   
-  #Marginal effects plot: Plotted and saved
-  jpeg(file=marginal_left_path)
-  print(marginal_effects(m))
-  dev.off()
-  
-  #Transition plot: plotted and saved
-  jpeg(file=trans_left_path)
-  print(plot(m))
-  dev.off()
-
-  #pp_check plot: Plotted and saved
-  jpeg(file=pp_left_path)
-  print(pp_check(prior_check, nsamples = 100))
-  dev.off()
-  
-  #model with correct
-   
-  #Marginal effects plot: Plotted and saved
-  jpeg(file=correct_marginal_left_path)
-  print(marginal_effects(m_c))
-  dev.off()
-  
-  #Transition plot: plotted and saved
-  jpeg(file=correct_trans_left_path)
-  print(plot(m_c))
-  dev.off()
-
-  #pp_check plot: Plotted and saved
-  jpeg(file=correct_pp_left_path)
-  print(pp_check(correct_prior_check, nsamples = 100))
-  dev.off()
-   
-  summary(m)
-  summary(m_c)
-  
-  #Saving summary in temporary dataframe
-  data_i$Est_int_left <- fixef(m)[1]
-  data_i$Error_int_left <- fixef(m)[3]
-  data_i$Est_dif_blue_left <- fixef(m)[2]
-  data_i$Error_dif_blue_left <- fixef(m)[4]
-  data_i$Est_int_left_correct <- fixef(m_c)[1]
-  data_i$Error_int_left_correct <- fixef(m_c)[3]
-  data_i$Est_dif_blue_left_correct <- fixef(m_c)[2]
-  data_i$Error_dif_blue_left_correct <- fixef(m_c)[4]
-  data_i$Rhat_1_left <- m[["fit"]]@.MISC[["summary"]][["rhat"]][[1]]
-  data_i$Rhat_2_left <- m[["fit"]]@.MISC[["summary"]][["rhat"]][[2]]
-  data_i$Rhat_3_left <- m[["fit"]]@.MISC[["summary"]][["rhat"]][[3]] #Why are there three? 
-  data_i$Ess_1_left <- m[["fit"]]@.MISC[["summary"]][["ess"]][[1]]
-  data_i$Ess_2_left <- m[["fit"]]@.MISC[["summary"]][["ess"]][[2]]
-  data_i$Ess_3_left <- m[["fit"]]@.MISC[["summary"]][["ess"]][[3]] #Why are there three? 
-  
-  #Insert into permanent data frame
-  if (n == 1){
-    Results <- data_i
-  } else {
-    Results <- rbind(Results, data_i)
-  }
-
-  #Adding 1 to number of iterations
-n = n + 1
-  
-}
-
-write.csv(Results, file = "Results_left.csv")
-
-
-```
-
-```{r logistic regression using wide format, individual right}
-###RIGHT
-
-#Making a number of iterations variable
-n = 1
-
-###Making a loop for individual slope
-for (i in unique(data$unique_ID_right)){
-  data_i <- filter(data, unique_ID_right == i) #changed from data_i <- filter(Results, unique_ID_right == i)
-  
-  #Defining paths for plots
-  trans_right_path = file.path("~/SocKultExam/plots/transition/right/", paste("trans_right_plot_", i, ".jpeg", sep = ""))
-  pp_right_path = file.path("~/SocKultExam/plots/pp_check/right/", paste("pp_right_plot_",i, ".jpeg", sep = ""))
-  marginal_right_path = file.path("~/SocKultExam/plots/marginal/right/", paste("marginal_right_plot_", i, ".jpeg", sep = ""))
-  
-  #...and for correct
-  correct_trans_right_path = file.path("~/SocKultExam/plots/correct_transition/right/", paste("correct_trans_right_plot_", i, ".jpeg", sep = ""))
-  correct_pp_right_path = file.path("~/SocKultExam/plots/correct_pp_check/right/", paste("correct_pp_right_plot_",i, ".jpeg", sep = ""))
-  correct_marginal_right_path = file.path("~/SocKultExam/plots/correct_marginal/right/", paste("correct_marginal_right_plot_", i, ".jpeg", sep = ""))
-  
-  #Defining priors
-  prior =  c(
-  prior(normal(0,0.17), class = "Intercept"),  #Why does this not work? 
-  prior(normal(0,0.125), class = "b", coef = "dif_blue")
-  )
-  
-  #...and for correct
-  correct_prior =  c(
-  prior(normal(0,0.25), class = "b", coef = "dif_blue_abs")
-  )
-  
-  
-    #Prior predictive check
-  prior_check <- brm(right_answer ~ dif_blue, prior = prior,
-           data = data_i, sample_prior = "only",iter = 4000, family = "bernoulli")
-  
-    #Prior predictive check
-  correct_prior_check <- brm( Correct_right ~ 0 + dif_blue_abs, prior = correct_prior,
-           data = data_i, sample_prior = "only",iter = 4000, family = "bernoulli")
-
-    #Making the model - using answer
-  m <- brm(
-    right_answer ~ dif_blue,
-    data = data_i,
-    prior = prior,
-    family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-    seed = 123 # Adding a seed makes results reproducible.
-  ) 
- 
-  
-  #Making the model - using correctness
-  m_c <- brm(
-    Correct_right ~ 0 + dif_blue_abs,
-    data = data_i,
-    prior = correct_prior,
-    family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-    seed = 123 # Adding a seed makes results reproducible.
-  ) 
-  
-  #Marginal effects plot: Plotted and saved
-  jpeg(file=marginal_right_path)
-  print(marginal_effects(m))
-  dev.off()
-  
-  #transition plot: Plotted and saved
-  jpeg(file=trans_right_path)
-  print(plot(m))
-  dev.off()
-
-  #pp_check plot: Plotted and saved
-  jpeg(file=pp_right_path)
-  print(pp_check(prior_check, nsamples = 100))
-  dev.off()
-  
-  #model with correct
-   
-  #Marginal effects plot: Plotted and saved
-  jpeg(file=correct_marginal_right_path)
-  print(marginal_effects(m_c))
-  dev.off()
-  
-  #Transition plot: plotted and saved
-  jpeg(file=correct_trans_right_path)
-  print(plot(m_c))
-  dev.off()
-
-  #pp_check plot: Plotted and saved
-  jpeg(file=correct_pp_right_path)
-  print(pp_check(correct_prior_check, nsamples = 100))
-  dev.off()
-   
-  
-  summary(m)
-  summary(m_c)
-  
-  
-  #Saving summary in temporary dataframe
-  data_i$Est_int_right <- fixef(m)[1]
-  data_i$Error_int_right <- fixef(m)[3]
-  data_i$Est_dif_blue_right <- fixef(m)[2]
-  data_i$Error_dif_blue_right <- fixef(m)[4]
-  data_i$Est_int_right_correct <- fixef(m_c)[1]
-  data_i$Error_int_right_correct <- fixef(m_c)[3]
-  data_i$Est_dif_blue_right_correct <- fixef(m_c)[2]
-  data_i$Error_dif_blue_right_correct <- fixef(m_c)[4]
-  data_i$Rhat_1_right <- m[["fit"]]@.MISC[["summary"]][["rhat"]][[1]]
-  data_i$Rhat_2_right <- m[["fit"]]@.MISC[["summary"]][["rhat"]][[2]]
-  data_i$Rhat_3_right <- m[["fit"]]@.MISC[["summary"]][["rhat"]][[3]] #Why are there three?
-  data_i$Ess_1_right <- m[["fit"]]@.MISC[["summary"]][["ess"]][[1]]
-  data_i$Ess_2_right <- m[["fit"]]@.MISC[["summary"]][["ess"]][[2]]
-  data_i$Ess_3_right <- m[["fit"]]@.MISC[["summary"]][["ess"]][[3]] #Why are there three?
-  
-  #Insert into permanent data frame
-  if (n == 1){
-    Results <- data_i
-  } else {
-    Results <- rbind(Results, data_i)
-  }
-  
-n = n + 1
-  
-}
-
-write.csv(Results, file = "Results_left_and_right.csv")
-
-```
-
-###Joint performance
-```{r logistic regression using wide format, joint}
-###JOINT
-
-#Making a number of iterations variable
-n = 1
-
-###Making a loop for individual slope
-for (i in unique(data$GroupNumber)){
-  data_i <- filter(data, GroupNumber == i)
-  
-  #Defining paths for plots
-  trans_joint_path = file.path("~/SocKultExam/plots/transition/joint/", paste("trans_joint_plot_", i, ".jpeg", sep = ""))
-  pp_joint_path = file.path("~/SocKultExam/plots/pp_check/joint/", paste("pp_joint_plot_",i, ".jpeg", sep = ""))
-  marginal_joint_path = file.path("~/SocKultExam/plots/marginal/joint/", paste("marginal_joint_plot_", i, ".jpeg", sep = ""))
-  
-  #...and for correct
-  correct_trans_joint_path = file.path("~/SocKultExam/plots/correct_transition/joint/", paste("correct_trans_joint_plot_", i, ".jpeg", sep = ""))
-  correct_pp_joint_path = file.path("~/SocKultExam/plots/correct_pp_check/joint/", paste("correct_pp_joint_plot_",i, ".jpeg", sep = ""))
-  correct_marginal_joint_path = file.path("~/SocKultExam/plots/correct_marginal/joint/", paste("correct_marginal_joint_plot_", i, ".jpeg", sep = ""))
-  
-  #Defining priors
-  prior =  c(
-  prior(normal(0,0.17), class = "Intercept"),  #Why does this not work? 
-  prior(normal(0,0.125), class = "b", coef = "dif_blue")
-  )
-  
-  #...and for correct
-  correct_prior =  c(
-  prior(normal(0,0.25), class = "b", coef = "dif_blue_abs")
-  )
-  
-    #Prior predictive check
-  prior_check <- brm(joint_answer ~ dif_blue, prior = prior,
-           data = data_i, sample_prior = "only",iter = 4000, family = "bernoulli")
-  
-    #Prior predictive check
-  correct_prior_check <- brm( Correct_joint ~ 0 + dif_blue_abs, prior = correct_prior,
-           data = data_i, sample_prior = "only",iter = 4000, family = "bernoulli")
-
-      #Making the model - using answer
-  m <- brm(
-    joint_answer ~ dif_blue,
-    data = data_i,
-    prior = prior,
-    family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-    seed = 123 # Adding a seed makes results reproducible.
-  ) 
- 
-  #Making the model - using correctness
-  m_c <- brm(
-    Correct_joint ~ 0 + dif_blue_abs,
-    data = data_i,
-    prior = correct_prior,
-    family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-    seed = 123 # Adding a seed makes results reproducible.
-  ) 
-
-  #Marginal plot
-  jpeg(file=marginal_joint_path)
-  print(marginal_effects(m))
-  dev.off()
-  
-  #transition plot: Plotted and saved
-  jpeg(file=trans_joint_path)
-  print(plot(m))
-  dev.off()
-
-  #pp_check plot: Plotted and saved
-  jpeg(file=pp_joint_path)
-  print(pp_check(prior_check, nsamples = 100))
-  dev.off()
-  
-  #Model with correct
-   
-  #Marginal effects plot: Plotted and saved
-  jpeg(file=correct_marginal_joint_path)
-  print(marginal_effects(m_c))
-  dev.off()
-  
-  #Transition plot: plotted and saved
-  jpeg(file=correct_trans_joint_path)
-  print(plot(m_c))
-  dev.off()
-
-  #pp_check plot: Plotted and saved
-  jpeg(file=correct_pp_joint_path)
-  print(pp_check(correct_prior_check, nsamples = 100))
-  dev.off()
-  summary(m)
-  
-  #Saving summary in temporary dataframe
-  data_i$Est_int_joint <- fixef(m)[1]
-  data_i$Error_int_joint <- fixef(m)[3]
-  data_i$Est_dif_blue_joint <- fixef(m)[2]
-  data_i$Error_dif_blue_joint <- fixef(m)[4]
-  data_i$Est_int_joint_correct <- fixef(m_c)[1]
-  data_i$Error_int_joint_correct <- fixef(m_c)[3]
-  data_i$Est_dif_blue_joint_correct <- fixef(m_c)[2]
-  data_i$Error_dif_blue_joint_correct <- fixef(m_c)[4]
-  data_i$Rhat_1_joint <- m[["fit"]]@.MISC[["summary"]][["rhat"]][[1]]
-  data_i$Rhat_2_joint <- m[["fit"]]@.MISC[["summary"]][["rhat"]][[2]]
-  data_i$Rhat_3_joint <- m[["fit"]]@.MISC[["summary"]][["rhat"]][[3]] #Why are there three?
-  data_i$Ess_1_joint <- m[["fit"]]@.MISC[["summary"]][["ess"]][[1]]
-  data_i$Ess_2_joint <- m[["fit"]]@.MISC[["summary"]][["ess"]][[2]]
-  data_i$Ess_3_joint <- m[["fit"]]@.MISC[["summary"]][["ess"]][[3]] #Why are there three?
-  
-  #Insert into permanent data frame
-  if (n == 1){
-    Results <- data_i
-  } else {
-    Results <- rbind(Results, data_i)
-  }
-  
-#Adding to the number of iterations
-n = n + 1
-  
-}
-
-write.csv(Results, file = "Results_left_right_joint.csv")
-
-```
-
-
-#Partial pooling
-
+#Sensitivity scores, partial pooling
 We need one column containing answer from both left and right in order to allow pooling between all participants
 
+##Long format
 ```{r making long format, include = FALSE}
 #Subsetting the left data
 left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, left_answer, joint_answer, Correct_left, Correct_joint, dif_blue_abs))
@@ -615,87 +207,48 @@ ldata <- rbind(left, right)
 #Setting NA in correct answers
 ldata$Correct_joint[is.na(ldata$joint_answer)] <- NA
 
-
 ```
 
-When we have the long format, we can do a model with partial pooling: get_prior(answer ~ dif_blue + unique_ID, data = data)
-
-A consideration: Should we allow different slopes for the same participant in different groups? 
-- Yes, this makes more sense, when calculating performance difference. 
-
-OBS: Needs discussion
-- When saving the betas, we do not want the main effect of difficulty, can we just add that to the beta for the individual slope? 
-
-
-- I think not, since it is in the scale of log odds. This is probably, what Riccardo is talking about. 
-
+##Modelling sensitivity scores (using answer)
 ```{r creating model with partial pooling, individual}
 
 #Getting priors
 get_prior(answer ~ dif_blue + (1+ dif_blue|unique), family = "bernoulli", data = ldata)
-get_prior(Correct ~ 0 + dif_blue + (0+ dif_blue|unique), family = "bernoulli", data = ldata)
 
 #Defining priors
-prior_answer =  c(
+prior =  c(
   prior(normal(0,0.125), class = "b", coef = "dif_blue"),
   prior(normal(0,0.17), class = "Intercept"),
   prior(normal(0,0.125), class = "sd", coef = "dif_blue", group = "unique"),
   prior(normal(0,0.17), class = "sd", coef = "Intercept", group = "unique")
 )
 
-prior_correct =  c(
-  prior(normal(0,0.25), class = "b", coef = "dif_blue_abs"),
-  prior(normal(0,0.25), class = "sd", coef = "dif_blue_abs", group = "unique")
-)
-
- 
   
 #Defining paths for plots
 trans_path_pool_indi = file.path("~/SocKultExam/plots/transition/pool/trans_plot_pool_individual.jpeg")
 pp_path_pool_indi = file.path("~/SocKultExam/plots/pp_check/pool/pp_plot_pool_individual.jpeg")
 marginal_path_pool_indi = file.path("~/SocKultExam/plots/marginal/pool/marginal_plot_pool_individual.jpeg")
-#...and for correct
-correct_trans_path_pool_indi = file.path("~/SocKultExam/plots/correct_transition/pool/correct_trans_plot_pool_individual.jpeg")
-correct_pp_path_pool_indi = file.path("~/SocKultExam/plots/correct_pp_check/pool/correct_pp_plot_pool_individual.jpeg")
-correct_marginal_path_pool_indi = file.path("~/SocKultExam/plots/correct_marginal/pool/correct_marginal_plot_pool_individual.jpeg")
-  
 
 
-#Prior predictive check - for answer
+#Prior predictive check
 prior_check_answer_pool_individual <- brm( answer ~ dif_blue + (dif_blue|unique), prior = prior_answer,
            data = ldata, sample_prior = "only",iter = 4000, family = "bernoulli")
 
-#Prior predictive check - for correct
-prior_check_correct_pool_individual <- brm(Correct ~  0 + dif_blue_abs + (0 +dif_blue_abs|unique), prior = prior_correct,
-           data = ldata, sample_prior = "only",iter = 4000, family = "bernoulli")
 
-
-
-#Making the model - using answer
+#Making the model
 m_p <- brm(
   answer ~ dif_blue + (1+dif_blue|unique),
   data = ldata,
-  prior = prior_answer,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123 # Adding a seed makes results reproducible.
-) 
-
-#Making the model - using correct
-m_p_c <- brm(
-  Correct ~ 0 +dif_blue_abs + (0+dif_blue_abs|unique),
-  data = ldata,
-  prior = prior_correct,
+  prior = prior,
   family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
   seed = 123 # Adding a seed makes results reproducible.
 ) 
 
 
-  
 #Marginal effects plot: Plotted and saved
 jpeg(file=marginal_path_pool_indi)
 print(marginal_effects(m_p))
 dev.off()
-    
   
 #transition plot: Plotted and saved
 jpeg(file=trans_path_pool_indi)
@@ -706,27 +259,14 @@ dev.off()
 jpeg(file=pp_path_pool_indi)
 print(pp_check(prior_check_answer_pool_individual, nsamples = 100))
 dev.off()
-  
-  
-#For correct
-#Marginal effects plot: Plotted and saved
-jpeg(file=correct_marginal_path_pool_indi)
-print(marginal_effects(m_p_c))
-dev.off()
-    
-#transition plot: Plotted and saved
-jpeg(file=correct_trans_path_pool_indi)
-print(plot(m_p_c))
-dev.off()
 
-#pp_check plot: Plotted and saved
-jpeg(file=correct_pp_path_pool_indi)
-print(pp_check(prior_check_correct_pool_individual, nsamples = 100))
-dev.off()
-  
-###Saving the estimates
+```
 
-#ANSWER
+
+##Saving estimats from sensitivity
+```{r}
+#Saving the estimates
+
 #Saving random effect for individual 
 pooling_individual_ranef <- as.data.frame(ranef(m_p))[,1:2] #Intercept
 
@@ -735,18 +275,9 @@ pooling_individual_ranef <- cbind(pooling_individual_ranef, as.data.frame(ranef(
 #Adding fixed effects to random effect
 pooling_individual_fixef <- as.data.frame(fixef(m_p)) #Making data frame of fixed effects
 
-pooling_individual$Intercept_ranef_fixef_estimate_answer <- pooling_individual_ranef[, 1] + pooling_individual_fixef[1, 1] #Adding fixef of intercept to ranef of intercept
+pooling_individual$Intercept_ranef_fixef_estimate <- pooling_individual_ranef[, 1] + pooling_individual_fixef[1, 1] #Adding fixef of intercept to ranef of intercept
 
-pooling_individual$Slope_ranef_fixef_estimate_answer <- pooling_individual_ranef[, 3] + pooling_individual_fixef[1, 2] #Adding fixef of slope to ranef of slope
-
-#CORRECT
-#Saving random effect for individual 
-pooling_individual_ranef <- as.data.frame(ranef(m_p_c))[,1:2] #Slope
-
-#Adding fixed effects to random effect
-pooling_individual_fixef <- as.data.frame(fixef(m_p_c)) #Making data frame of fixed effects
-
-pooling_individual$Slope_ranef_fixef_estimate_correct <- pooling_individual_ranef[, 1] + pooling_individual_fixef[1, 1] #Adding fixef of slope to ranef of slope
+pooling_individual$Slope_ranef_fixef_estimate <- pooling_individual_ranef[, 3] + pooling_individual_fixef[1, 2] #Adding fixef of slope to ranef of slope
 
 
 #Adding rownames
@@ -755,6 +286,7 @@ pooling_individual <- cbind(Row.Names = rownames(pooling_individual_ranef), as.d
 write.csv(pooling_individual, file = "pooling_individual.csv")
 
 ```
+
 
 ```{r creating wide format, include = FALSE, this does not work}
 #Merging ldata output with wide data frame
@@ -766,186 +298,3 @@ data$Intercept_pooling_rf_left[data$GroupNumber == unique(str_extract(pooling_in
 
 ```
 
-
-```{r creating model with partial pooling, joint, skal ikke bruges alligevel}
-get_prior(joint_answer ~ dif_blue + (1 + dif_blue|GroupNumber), family = "bernoulli", data = ldata)
-get_prior(Correct_joint ~ dif_blue_abs + (0 + dif_blue|GroupNumber), family = "bernoulli", data = ldata)
-
-#Defining priors
-prior_answer_joint =  c(
-  prior(normal(0,0.125), class = "b", coef = "dif_blue"),
-  prior(normal(0,0.17), class = "Intercept"),
-  prior(normal(0,0.125), class = "sd", coef = "dif_blue", group = "GroupNumber"),
-  prior(normal(0,0.17), class = "sd", coef = "Intercept", group = "GroupNumber")
-)
-
-prior_correct_joint =  c(
-  prior(normal(0,0.25), class = "b", coef = "dif_blue_abs"),
-  prior(normal(0,0.25), class = "sd", coef = "dif_blue_abs", group = "GroupNumber")
-)
-
-#Defining paths for plots
-trans_path_pool_joint = file.path("~/SocKultExam/plots/transition/pool/trans_plot_pool_joint.jpeg")
-pp_path_pool_joint = file.path("~/SocKultExam/plots/pp_check/pool/pp_plot_pool_joint.jpeg")
-marginal_path_pool_joint = file.path("~/SocKultExam/plots/marginal/pool/marginal_plot_pool_joint.jpeg")
-#...and for correct
-correct_trans_path_pool_joint = file.path("~/SocKultExam/plots/correct_transition/pool/correct_trans_plot_pool_joint.jpeg")
-correct_pp_path_pool_joint = file.path("~/SocKultExam/plots/correct_pp_check/pool/correct_pp_plot_pool_joint.jpeg")
-correct_marginal_path_pool_joint = file.path("~/SocKultExam/plots/correct_marginal/pool/correct_marginal_plot_pool_joint.jpeg")
-  
-
-  
-#Prior predictive check - for answer
-prior_check_answer_pool_joint <- brm(joint_answer ~ dif_blue + (dif_blue|GroupNumber), prior = prior_answer_joint,
-           data = ldata, sample_prior = "only",iter = 4000, family = "bernoulli")
-
-#Prior predictive check - for correct
-prior_check_correct_pool_joint <- brm(Correct_joint ~  0 + dif_blue_abs + (0 +dif_blue_abs|GroupNumber), prior = prior_correct_joint,
-           data = ldata, sample_prior = "only",iter = 4000, family = "bernoulli")
-
-
-#Joint model with answer
-m_joint_answer <- brm(
-  joint_answer ~ dif_blue + (1 + dif_blue|GroupNumber),
-  data = ldata,
-  prior = prior_answer_joint,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123 # Adding a seed makes results reproducible.
-  ) 
-  
-summary(m_joint_answer)
-
-#Joint model with correct
-m_joint_correct <- brm(
-  Correct_joint ~ 0 + dif_blue_abs + (0+dif_blue_abs|GroupNumber),
-  data = ldata,
-  prior = prior_correct_joint,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123 # Adding a seed makes results reproducible.
-  
-  ) 
-summary(m_joint_correct)
-
-  
-#Marginal effects plot: Plotted and saved
-jpeg(file=marginal_path_pool_joint)
-print(marginal_effects(m_joint_answer))
-dev.off()
-    
-  
-#transition plot: Plotted and saved
-jpeg(file=trans_path_pool_joint)
-print(plot(m_joint_answer))
-dev.off()
-
-#pp_check plot: Plotted and saved
-jpeg(file=pp_path_pool_joint)
-print(pp_check(prior_check_answer_pool_joint, nsamples = 100))
-dev.off()
-  
-  
-#For correct
-#Marginal effects plot: Plotted and saved
-jpeg(file=correct_marginal_path_pool_joint)
-print(marginal_effects(m_joint_correct))
-dev.off()
-    
-#transition plot: Plotted and saved
-jpeg(file=correct_trans_path_pool_joint)
-print(plot(m_joint_correct))
-dev.off()
-
-#pp_check plot: Plotted and saved
-jpeg(file=correct_pp_path_pool_joint)
-print(pp_check(prior_check_correct_pool_joint, nsamples = 100))
-dev.off()
-
-#Saving estimates - runned till here!!
-
-#ANSWER
-#Saving random effect for individual 
-pooling_joint_ranef <- as.data.frame(ranef(m_joint_answer))[,1:2] #Intercept
-
-pooling_joint_ranef <- cbind(pooling_individual_ranef, as.data.frame(ranef(m_joint_answer))[,5:6]) #Slope
-
-#Adding fixed effects to random effect
-pooling_joint_fixef <- as.data.frame(fixef(m_joint_answer)) #Making data frame of fixed effects
-
-pooling_joint$Intercept_ranef_fixef_estimate_answer <- pooling_joint_ranef[, 1] + pooling_joint_fixef[1, 1] #Adding fixef of intercept to ranef of intercept
-
-pooling_joint$Slope_ranef_fixef_estimate_answer <- pooling_joint_ranef[, 3] + pooling_joint_fixef[1, 2] #Adding fixef of slope to ranef of slope
-
-#CORRECT
-#Saving random effect for individual 
-pooling_individual_ranef <- as.data.frame(ranef(m_p_c))[,1:2] #Slope
-
-#Adding fixed effects to random effect
-pooling_individual_fixef <- as.data.frame(fixef(m_p_c)) #Making data frame of fixed effects
-
-pooling_individual$Slope_ranef_fixef_estimate_correct <- pooling_individual_ranef[, 1] + pooling_individual_fixef[1, 1] #Adding fixef of slope to ranef of slope
-
-
-#Adding rownames
-pooling_joint <- cbind(Row.Names = rownames(pooling_individual_ranef), as.data.frame(pooling_individual))
-
-write.csv(pooling_individual, file = "pooling_individual.csv")
-```
-
-#Calculating performance difference
-
-```{r equality bias, ikke opdateret}
-#create best and worst columns
-Results$best <- ifelse(Results$Est_dif_blue_left > Results$Est_dif_blue_right, Results$Est_dif_blue_left, Results$Est_dif_blue_right )
-Results$worst <- ifelse(Results$Est_dif_blue_left < Results$Est_dif_blue_right, Results$Est_dif_blue_left, Results$Est_dif_blue_right )
-#create equality bias column
-Results$eb <- Results$best/Results$worst
-```
-
-#Regression for difficulty
-```{r regression for difficulty}
-#regression for difficulty left 
-get_prior(Correct ~ dif_blue_abs, data = ldata)
-
- prior =  c(
-  prior(normal(0,2), class = "Intercept"), #How to motiavte this?
-  prior(normal(0,2), class = "sigma"), #Roughly on the same scale
-  prior(normal(0,2), class = "b"), #How to motiavte this?
-  prior(normal(0,1), class = "b", coef = "dif_blue_abs"))
-  
-#Making the model, individual
-dif_reg <- brm(
-    Correct ~ dif_blue_abs + (1|unique),
-    data = ldata,
-    prior = prior,
-    family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-    seed = 123 # Adding a seed makes results reproducible.
-    ) 
-summary(dif_reg_left)
-marginal_effects(dif_reg_left)
-
-#Making the model, joint
-dif_reg_joint <- brm(
-    Correct_joint ~ dif_blue_abs + (1|GroupNumber),
-    data = ldata,
-    prior = prior,
-    family = "gaussian", #As we had a binary outcome, we set this to "bernoulli"
-    seed = 123 # Adding a seed makes results reproducible.
-    ) 
-summary(dif_reg_joint)
-marginal_effects(dif_reg_joint)
-```
-
-
-
-```{r spagetti plot}
-
-summary(m_p)
-
-plot(m_p, pars = "^b_") 
-
-plot(m_p)
-```
-
-- logistic regression individuals and joint - plot 
-- calculate equality bias (best/worst)
-- calculate collaborative bias (joint/best)
