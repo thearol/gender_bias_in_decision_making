@@ -15,111 +15,12 @@ library(brms);library(tidyverse); library(tidybayes); library(ggplot2); library(
 
 ```
 
-
-#Define path
+#Loading data 
 ```{r}
-#Defining path
-#data_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/Data/") #Kiri
-
-#Thea
-#setwd("~/SocKultExam")
-#data_path = ("Data/") 
-
-#Signe
-data_path = ("/Users/signeklovekjaer/gender_bias_in_decision_making/Gender_bias_study_1/Data/")
+data <- read.csv("anonymised_data.csv")
 ```
 
-
-#Loading data and merging
-```{r loading main data include = FALSE}
-#Listing files in path
-files <- list.files(path = data_path)
-
-#Create empty data frame
-data <- data.frame(matrix(ncol = 36, nrow = 0))
-
-#Looping through data files and inserting in dataframe
-for (i in files) {
-  d <- read.delim(file = paste(data_path, i, sep = ""), sep = ",", header = TRUE)
-  data = rbind(data,d)
-}
-
-```
-
-```{r loading data with different amount of trials}
-#Setting different path for extraordinary files
-#kiri_path = ("~/SocKultExam/") #Thea
-#kiri_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/kiri/")#Kiri
-kiri_path = ("/Users/signeklovekjaer/gender_bias_in_decision_making/Gender_bias_study_1/kiri/") #Signe
-
-#Listing files in directory
-kiri_files <- list.files(path = kiri_path, pattern = "*.csv") 
-
-#Creating empty data frame
-kiri_data <- data.frame(matrix(ncol = 35, nrow = 0))
-
-#Looping through Kiri data 
-for (i in kiri_files) {
-  d <- read.delim(file = paste(kiri_path, i, sep = ""), sep = ",", header = TRUE, stringsAsFactors = FALSE)
-  kiri_data = rbind(kiri_data, d)
-}
-
-```
-
-
-```{r}
-#Merge the two dataframes
-kiri_data <- add_column(kiri_data, Computer = "Two screens", .after = 4)
-data <- rbind(data, kiri_data)
-```
-
-
-#Data cleaning
-```{r cleaning data, include = FALSE}
-#Removing column of x
-data <- subset(data, select = -c(X))
-
-#Cleaning group numbers
-data$GroupNumber[data$GroupNumber == "17_10_30"] <- 17
-data$GroupNumber[data$GroupNumber == "18_10_30"] <- 18
-data$GroupNumber[data$GroupNumber == "19_10_50"] <- 19
-data$GroupNumber[data$GroupNumber == "20_10_50"] <- 20
-data$GroupNumber[data$GroupNumber == "21_12_15"] <- 21
-data$GroupNumber[data$GroupNumber == "22_12_15"] <- 22
-data$GroupNumber[data$GroupNumber == "23_12_40"] <- 23
-data$GroupNumber[data$GroupNumber == "24_12_40"] <- 24
-data$GroupNumber[data$GroupNumber == "25_15_00"] <- 25
-data$GroupNumber[data$GroupNumber == "26_15_00"] <- 26
-data$GroupNumber[data$GroupNumber == "27_15_20"] <- 27
-data$GroupNumber[data$GroupNumber == "28_15_20"] <- 28
-data$GroupNumber[data$GroupNumber == "29_16_00"] <- 29
-data$GroupNumber[data$GroupNumber == "30_16_00"] <- 30
-data$GroupNumber[data$GroupNumber == "31_16_20"] <- 31
-data$GroupNumber[data$GroupNumber == "32_16_20"] <- 32
-data$GroupNumber[data$GroupNumber == "33_9_30"] <- 33
-data$GroupNumber[data$GroupNumber == "34_09_30"] <- 34
-data$GroupNumber[data$GroupNumber == "35_09_50"] <- 35
-data$GroupNumber[data$GroupNumber == "36_9_50"] <- 36
-data$GroupNumber[data$GroupNumber == "37_26_4"] <- 37
-data$GroupNumber[data$GroupNumber == "38_26_4"] <- 38
-data$GroupNumber[data$GroupNumber == "39_26_4"] <- 39
-data$GroupNumber[data$GroupNumber == "40_26_4"] <- 40
-
-#Cleaning subject IDs
-data$SubjectID_left <- as.character(data$SubjectID_left)
-data$SubjectID_right <- as.character(data$SubjectID_right)
-data$SubjectID_left[data$SubjectID_left == "steph"] <- "stephanie"
-data$SubjectID_right[data$SubjectID_right == "Emil"] <- "emil"
-data$SubjectID_right[data$SubjectID_right == "Sebber"] <- "seb"
-data$SubjectID_left[data$SubjectID_left == "signe"] <- "SigneR"
-data$SubjectID_right[data$SubjectID_right == "karo"] <- "Karoline"
-data$SubjectID_right[data$SubjectID_right == "tobias"] <- "Toby"
-data$SubjectID_left[data$SubjectID_left == "Nina"] <- "nina"
-data$SubjectID_right[data$SubjectID_right == "theasmom"] <- "Theasmom"
-data$SubjectID_left[data$SubjectID_left == "emma"] <- "Emma"
-data$SubjectID_right[data$SubjectID_right == "LasseKob"] <- "Lasse"
-```
-
+#Preparing data
 ##Adding difficulty variable og dummy coding
 ```{r making variables for sensitivty, include = FALSE}
 #Making unique subjects
