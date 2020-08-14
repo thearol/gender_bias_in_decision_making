@@ -70,134 +70,9 @@ write.csv(long_data_db, file = "data_long_format_GBDM.csv")
 ```
 
 
-###MODELLING
+#Creating model to calculate sensitivity scores in a rolling window (10 trials)  
 
-
-
-
-## Create models for sensitivity scores
-
-```{r get priors, define priors and prior predictive check, eval = FALSE}
-
-#use get prior function
-get_prior(response_dummy ~ diff + (1 + diff|SubjectID_unique), family = "bernoulli", data = long_data_db)
-
-#Defining priors
-prior_sensitivity =  c(
-  prior(normal(0,0.1), class = "b", coef = "diff"),
-  prior(normal(0,0.2), class = "Intercept"),
-  prior(normal(0,0.1), class = "sd", coef = "diff", group = "SubjectID_unique"),
-  prior(normal(0,0.2), class = "sd", coef = "Intercept", group = "SubjectID_unique")
-)
-
-
-#Prior predictive check
-prior_check_sensitivity <- brm(response_dummy ~ diff + (diff|SubjectID_unique), 
-                               prior = prior_sensitivity,
-                               data = long_data_db, 
-                               sample_prior = "only",
-                               iter = 4000, 
-                               family = "bernoulli",
-                               cores=2,
-                               seed = 123,
-                               chains=2)
-
-pp_check(prior_check_sensitivity,nsamples = 100)
-
-```
-
-
-```{r sensitivity model, eval = FALSE}
-#Making the model 
-m_sensitivity <- brm(
-  response_dummy ~ diff + (1+diff|SubjectID_unique),
-  data = long_data_db,
-  prior = prior_sensitivity,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123,# Adding a seed makes results reproducible.
-  cores=4,
-  chains=4,
-  control = list(adapt_delta = 0.9)
-) 
-
-marginal_effects(m_sensitivity)
-plot(m_sensitivity)
-
-```
-
-#Saving model estimates for sensitivity
-```{r save the sensitivity estimates}
-#Saving random effect for individual intercept
-random_effects_intercept <- as.data.frame(ranef(m_sensitivity))[,1:2] 
-
-#Saving random effect for individual slope
-random_effects_slope <- as.data.frame(ranef(m_sensitivity))[,5:6]
-
-#Saving fixed effects 
-fixed_effects <- as.data.frame(fixef(m_sensitivity)) #Making data frame of fixed effects
-
-#Make an empty dataframe
-sensitivity_scores = data.frame(matrix(vector(), 128, 2,
-                dimnames=list(c(), c("Intercept", "Slope"))),
-                stringsAsFactors=F)
-
-#Add fixed effects of intercept to random effects of intercept
-sensitivity_scores$Intercept <- random_effects_intercept[,1] + fixed_effects[1,1]
-
-#Add fixed effects of slope to random effects of slope
-sensitivity_scores$Slope <- random_effects_slope[,1] + fixed_effects[2,1] #last year done differently
-
-#Adding rownames
-sensitivity_scores <- cbind(Row.Names = rownames(random_effects_intercept), as.data.frame(sensitivity_scores))
-
-#Duplicating comlumn, but as a character so we can use it to merge later
-sensitivity_scores$SubjectID_unique <- as.character(sensitivity_scores$Row.Names)
-
-#Removing first column
-sensitivity_scores <- sensitivity_scores[,2:4]
-
-```
-
-######## NOT YET A SENSITIVITY SCORES CSV ###########
-
-#Spaghetti plot of all participants --> 
-```{r}
-
-#setting working directory
-
-
-data <- read.csv("sensitivity_scores.csv", header = T, stringsAsFactors = F)
-
-p <- ggplot(data = data.frame(x = c(-9, 9)),aes(x))
-
-string <- "p"
-
-for (row in 1:128) {
-  intercept <- data[row,4]
-  slope <- data[row,5]
-  genderNumber <- as.numeric(str_extract(data[row,2], "\\d+"))
-  genderColor <- ifelse(genderNumber %% 2 == 0, "orange", "cornflowerblue")
-  
-  string <- paste(string, " + stat_function(colour = '",genderColor,"', alpha = 0.4, fun = function(x) 1 / (1 + exp(-",slope,"*(x-",intercept,"))), n = 100)", sep="")
-}
-
-plotti <- eval(parse(text = string))
-
-plotti + xlab ("Difficulty") + ylab("Propensity to answer 'right image'") + labs(title = "Individual sensitivity slopes") + theme(plot.title = element_text(hjust = 0.5))
-
-
-#zoom for inspection
-#plotti + coord_cartesian(xlim=c(-2,2), ylim = c(0.35,0.65)) #
-
-```
-
-#Merging the sensitivity scores with the rest of the data
-```{r merge sensitivity scores with long_data_db, eval = FALSE}
-long_data_db <- merge(long_data_db,sensitivity_scores, by="SubjectID_unique")
-```
-
-
-```{r creating new sensitivity score, eval = FALSE}
+```{r creating rolling sensitivity score, eval = FALSE}
 
 #Making a number of iterations variable
 n = 1
@@ -301,8 +176,7 @@ for (i in 1:96){ #Loop through number of trials
 ```
 
 
-
-#Write a csv-file with the sensitivity scores with a rolling window
+#Write a csv-file with the sensitivity scores
 ```{r write and read csv}
   
 write.csv(sensitivity_scores_roll, file = "sensitivity_scores_rolling.csv")
@@ -311,9 +185,8 @@ write.csv(sensitivity_scores_roll, file = "sensitivity_scores_rolling.csv")
 sensitivity_scores_roll <- read.csv("sensitivity_scores_rolling.csv")[,2:89]
 ```
 
-#Merge the rolling window sensitivity scores with the existing data frame
+#Merge the sensitivity scores with the existing data frame
 ```{r merge the new results with the long data frame}
-
 
 #Creating a trial variable
 n = 1
@@ -323,7 +196,7 @@ data_j = NULL
    if (n == 1) {
      data_j <- filter(long_data_db, long_data_db$SubjectID_unique == p)
      data_j <- cbind(data_j, as.data.frame(1:sum(complete.cases(data_j$SubjectID))))
-     colnames(data_j)[27] <- "Trial"
+     colnames(data_j)[25] <- "Trial"
      n = n + 1
      } else {
      data_j <- rbind(data_j,mutate(filter(long_data_db, long_data_db$SubjectID_unique == p), Trial = 1:sum(complete.cases(filter(long_data_db, long_data_db$SubjectID_unique == p)$SubjectID))))
@@ -342,7 +215,7 @@ long_data_db <- merge(data_j, mdata, by = c("SubjectID_unique", "Trial"), all.x 
 
 ```
 
-#Plotting the model 
+#Plotting s-curves for each participant 
 
 ```{r slopes for individuals in single plots, eval = FALSE}
 #Plot of individuals
@@ -354,6 +227,8 @@ marginal_effects(
   )
 ```
 
+#Plotting summarized s-curve 
+
 ```{r marginal effects, classic, eval = FALSE }
 #Summarized plot
 marginal_effects(m_sensitivity)
@@ -364,7 +239,7 @@ marginal_effects(m_sensitivity)
 ```{r create dataframe that only contains the columns which we would like to merge into wide format}
 
 #Make dataframe with intercept, slope, side, and unique subject
-sensitivity_scores <- distinct(long_data_db, SubjectID_unique, Side, Intercept, Slope, Sensitivity_roll, Trial)
+sensitivity_scores <- distinct(long_data_db, SubjectID_unique, Side, Sensitivity_roll, Trial)
 
 ```
 
@@ -389,8 +264,8 @@ sensitivity_scores_right <- subset(sensitivity_scores_right, select = -c(Side))
 sensitivity_scores_left <- subset(sensitivity_scores_left, select = -c(Side))
 
 #Renaming columns
-colnames(sensitivity_scores_left) <-  c("Intercept_left", "Slope_left", "Sensitivity_roll_left", "Trial_left", "SubjectID_left_unique")
-colnames(sensitivity_scores_right) <-  c("Intercept_right", "Slope_right", "Sensitivity_roll_right", "Trial_right", "SubjectID_right_unique")
+colnames(sensitivity_scores_left) <-  c("Sensitivity_roll_left", "Trial_left", "SubjectID_left_unique")
+colnames(sensitivity_scores_right) <-  c("Sensitivity_roll_right", "Trial_right", "SubjectID_right_unique")
 
 #Creating a column for trial to the right
 disagree_db$Trial_right <- disagree_db$Trial 
@@ -413,21 +288,7 @@ disagree_db_wide <- filter(disagree_db_wide, group_id != "25_KK_27" & group_id !
 ```
 
 
-#Calculating skill difference
-
-```{r calculating skill difference}
-#Creating column of 0
-disagree_db_wide$skill_dif <- 0 
-
-disagree_db_wide$skill_dif <- ifelse(disagree_db_wide$chosen_leader == "Left_lead", disagree_db_wide$Slope_left/disagree_db_wide$Slope_right, disagree_db_wide$Slope_right/disagree_db_wide$Slope_left) 
-
-#calculating skill difference as a ratio between leader and follower sensitivity, so that a skill difference of zero means no difference in skill
-disagree_db_wide$skill_dif_c <- (disagree_db_wide$skill_dif)-1
-
-```
-
-
-#Skill difference rolling
+#Calculate skill difference
 
 ```{r calculating skill difference rolling}
 disagree_db_wide$skill_dif_roll <- 0 #Creating column of 0
@@ -437,11 +298,7 @@ disagree_db_wide$skill_dif_roll_c <- (disagree_db_wide$skill_dif_roll)-1
 ```
 
 
-
-##Modelling confidence
-
-
-#Confidence difference
+#Calculate confidence difference
 
 ```{r calculating confidence difference }
 #Making the responses absolute numbers
@@ -466,7 +323,6 @@ disagree_db_wide$conf_dif_c <- (disagree_db_wide$conf_dif)-1
 ```
 
 
-
 #Back to long format (to use in model)
 
 ```{r make long format}
@@ -475,11 +331,11 @@ disagree_db_wide$conf_dif_c <- (disagree_db_wide$conf_dif)-1
 disagree_left <- disagree_db_wide %>% select(-contains('right'))
 
 #make sure there is only the relevent information of the participant, thus, inserting NAs when the chosen leader was not left
-disagree_left$skill_dif[disagree_left$chosen_leader != 'Left_lead'] <- NA 
+disagree_left$skill_dif_roll[disagree_left$chosen_leader != 'Left_lead'] <- NA 
 
 disagree_left$conf_dif[disagree_left$chosen_leader != 'Left_lead'] <- NA 
 
-disagree_left$skill_dif_c[disagree_left$chosen_leader != 'Left_lead'] <- NA 
+disagree_left$skill_dif_roll_c[disagree_left$chosen_leader != 'Left_lead'] <- NA 
 
 disagree_left$conf_dif_c[disagree_left$chosen_leader != 'Left_lead'] <- NA 
 
@@ -495,11 +351,11 @@ disagree_left$Follower_gender[disagree_left$chosen_leader != 'Left_lead'] <- NA
 disagree_right <- disagree_db_wide %>% select(-contains('left'))
 
 #make sure there is only the relevent information of the participant, thus, inserting NAs when the chosen leader was not right
-disagree_right$skill_dif[disagree_right$chosen_leader != 'Right_lead'] <- NA 
+disagree_right$skill_dif_roll[disagree_right$chosen_leader != 'Right_lead'] <- NA 
 
 disagree_right$conf_dif[disagree_right$chosen_leader != 'Right_lead'] <- NA 
 
-disagree_right$skill_dif_c[disagree_right$chosen_leader != 'Right_lead'] <- NA 
+disagree_right$skill_dif_roll_c[disagree_right$chosen_leader != 'Right_lead'] <- NA 
 
 disagree_right$conf_dif_c[disagree_right$chosen_leader != 'Right_lead'] <- NA 
 
