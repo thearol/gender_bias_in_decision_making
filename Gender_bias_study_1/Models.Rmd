@@ -12,7 +12,8 @@ knitr::opts_chunk$set(echo = TRUE)
 #Preparing markdown
 ```{r setting working directory}
 #set working directory 
-setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
+setwd("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1") #Kiri
+#setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
 #setwd("~/SocKultExam") #Thea
 ```
 
@@ -41,7 +42,7 @@ data$Leader_gender <- as.factor(data$Leader_gender)
 ##The full model with skill difference (full)
 ```{r}
 #Get priors
-get_prior(leader_behaviour ~ 0 + skill_dif * Leader_gender * Follower_gender + (1 + skill_dif:Follower_gender | Subject ), data = data, family = "bernoulli")
+get_prior(leader_behaviour ~ 0 + skill_dif * Leader_gender:Follower_gender + (1 + skill_dif:Follower_gender | Subject ), data = data, family = "bernoulli")
 
 #Defining priors
 prior_full <- c(
