@@ -1,0 +1,69 @@
+---
+title: "Code-chunks for supervision"
+author: "NN"
+date: "6/9/2020"
+output: html_document
+---
+
+#Getting packages
+```{r loading packages, include = FALSE}
+library(pacman)
+p_load(brms, tidyverse, tidybayes, ggplot2, LaplacesDemon, rethinking, tidyr, reshape2, tibble, plotly, jpeg, tm, ggrepel, utils, boot, Hmisc, scales, gridExtra, pROC)
+```
+
+#Loading data
+```{r}
+data_db_all <- read.csv("data_long_format_GBDM.csv")
+```
+
+#Confidence investigation
+##Is there a correlation between confidence and accuracy? nd is it different for men and women? Baseret på artikel, Fleming & Lau (2014)
+```{r}
+
+#Make a variable of hard end easy trials
+data_db_all$difficulty_level <- ifelse(data_db_all$diff <=5 & data_db_all$diff >=-5, "hard", "easy")
+
+#Make a variable of high (1) and low confidence (0)
+data_db_all$confidence_level <- ifelse(data_db_all$Response <=2 & data_db_all$Response >=-2, 0, 1) #Motiver threshold!
+
+
+#Make a confusion table of false and true positives and negatives
+Correct = filter(data_db_all, difficulty_level =="easy")$Correct
+Confidence = filter(data_db_all, difficulty_level =="easy")$confidence_level
+
+table(Correct, Confidence)
+
+#EASY TRIALS
+#Across gender sensitivity, easy trials
+roc1 <- roc(filter(data_db_all, difficulty_level =="easy")$Correct, filter(data_db_all, difficulty_level =="easy")$confidence_level)
+plot(roc1, legacy.axes = TRUE, asp = 0)
+auc(roc1) #finder arealet under kurven, bør være end 0.5
+
+#Female sensitivity, easy trials
+roc2 <- roc(filter(data_db_all, Gender =="Female" & difficulty_level =="easy")$Correct, filter(data_db_all, Gender =="Female" & difficulty_level =="easy")$Response)
+plot(roc2, legacy.axes = TRUE, asp = 0)
+auc(roc2) #finder arealet under kurven, bør være højere end 0.5
+
+#Male sensitivity, easy trials 
+roc3 <- roc(filter(data_db_all, Gender =="Male" & difficulty_level =="easy")$Correct, filter(data_db_all, Gender =="Male" & difficulty_level =="easy")$Response)
+plot(roc3, legacy.axes = TRUE, asp = 0)
+auc(roc3) #finder arealet under kurven, bør være højere end 0.5
+
+
+#HARD TRIALS
+#Across gender sensitivity, hard trials
+roc4 <- roc(filter(data_db_all, difficulty_level =="hard")$Correct, filter(data_db_all, difficulty_level =="hard")$confidence_level)
+plot(roc4, legacy.axes = TRUE, asp = 0)
+auc(roc4) #finder arealet under kurven, bør være end 0.5
+
+#Female sensitivity, hard trials
+roc5 <- roc(filter(data_db_all, Gender =="Female" & difficulty_level =="hard")$Correct, filter(data_db_all, Gender =="Female" & difficulty_level =="hard")$Response)
+plot(roc5, legacy.axes = TRUE, asp = 0)
+auc(roc5) #finder arealet under kurven, bør være højere end 0.5
+
+#Male sensitivity, hard trials 
+roc6 <- roc(filter(data_db_all, Gender =="Male" & difficulty_level =="hard")$Correct, filter(data_db_all, Gender =="Male" & difficulty_level =="hard")$Response)
+plot(roc6, legacy.axes = TRUE, asp = 0)
+auc(roc6) #finder arealet under kurven, bør være højere end 0.5
+
+```

@@ -8,12 +8,13 @@ output: html_document
 #Getting packages
 ```{r loading packages, include = FALSE}
 library(pacman)
-p_load(brms, tidyverse, tidybayes, ggplot2, LaplacesDemon, rethinking, tidyr, reshape2, tibble, plotly, jpeg, tm, ggrepel, utils, boot, Hmisc, scales, gridExtra)
+p_load(brms, tidyverse, tidybayes, ggplot2, LaplacesDemon, rethinking, tidyr, reshape2, tibble, plotly, jpeg, tm, ggrepel, utils, boot, Hmisc, scales, gridExtra, pROC)
 ```
 
 #Setting directory
 ```{r}
-setwd("~/gender_bias_in_decision_making/Gender_bias_study_2")
+#setwd("~/gender_bias_in_decision_making/Gender_bias_study_2") #Signe
+setwd("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_2") #Kiri
 ```
 
 
@@ -236,16 +237,6 @@ hypothesis(model_1, "(Leader_genderMale:Follower_genderMale + Leader_genderFemal
 ```
 
 
-###H1.3: There is an interaction effect: Female leaders are more discriminative as to their followers gender than male leaders are
-```{r H1.3 of model_1}
-
-#H1.3 of model_1
-hypothesis(model_1, "(Leader_genderMale:Follower_genderMale - Leader_genderMale:Follower_genderFemale) < (Leader_genderFemale:Follower_genderMale - Leader_genderFemale:Follower_genderFemale)")
-
-
-```
-
-
 ##Hypothesis testing with model 2
 
 
@@ -266,15 +257,20 @@ hypothesis(model_2, "(Leader_genderMale:Follower_genderMale + Leader_genderFemal
 
 ```
 
-
-###H2.3: There is an interaction effect: Female leaders are more discriminative as to their followers gender than male leaders are
-```{r H2.3 of model 2}
-
-#H2.3 of model 2
-hypothesis(model_2, "(Leader_genderMale:Follower_genderMale - Leader_genderMale:Follower_genderFemale) < (Leader_genderFemale:Follower_genderMale - Leader_genderFemale:Follower_genderFemale)")
+###H2.3: Males exploit the information given by the confidence of their partner more than females, when making a final decision
+```{r}
+#testing this hypothsis with model_db2
+hypothesis(model_db2, "((conf_dif_c:Leader_genderFemale:Follower_genderFemale + conf_dif_c:Leader_genderFemale:Follower_genderMale)/2) > ( (conf_dif_c:Leader_genderMale:Follower_genderFemale + conf_dif_c:Leader_genderMale:Follower_genderMale)/2) ")
 
 ```
 
+###H2.4:Females are more discriminative to their follower's gender in terms of the degree to which they exploit the information given by their partner's confidence than males
+```{r}
+
+hypothesis(model_db2, "(conf_dif_c:Leader_genderFemale:Follower_genderMale - conf_dif_c:Leader_genderFemale:Follower_genderFemale) > ( conf_dif_c:Leader_genderMale:Follower_genderMale - conf_dif_c:Leader_genderMale:Follower_genderFemale) ")
+
+
+```
 
 ##Hypothesis testing with model 3
 
@@ -297,7 +293,7 @@ hypothesis(model_4, "((Intercept + (Intercept + Partner_genderMale)) / 2) < (((I
 ```
 
 
-##H4.2: Females and males are equally affected by their partner's gender in terms of how they express their own confidence
+###H4.2: Females and males are equally affected by their partner's gender in terms of how they express their own confidence
 ```{r H4.2 of model_4}
 #H4.2 of model_4
 hypothesis(model_4, "Partner_genderMale = (GenderMale + GenderMale:Partner_genderMale)")
@@ -334,50 +330,10 @@ pred_1 <-
 
 ```
 
-#SKAL EVT SLETTES
 
-###H1.1: There is an effect of leader in relation to gender: male leaders tend to surrender less than female leaders
-```{r plot of H1.1}
-H1.1 <- ggplot(data_db, aes(x = Leader_gender, y = leader_behavior, fill = Leader_gender)) +
-  labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "H1.1") +
-  geom_boxplot(aes(x = Leader_gender, Estimate) , data = pred_1, width = 0.5) + 
-  theme(legend.position = "none", panel.grid.minor = element_blank()) + 
-  geom_violin(aes(x = Leader_gender, y = Estimate), data = pred_1, trim = FALSE, width =1, alpha = 0.1) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred_1$Estimate), max(pred_1$Estimate), length.out=5), 0.5))) + 
-  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_fill_manual(values=c("orange", "blue")) +
-  theme(plot.title = element_text(hjust = 0.5))+ 
-  theme(text = element_text(size=20))
-
-
-H1.1
-
-```
-
-
-#SKAL EVT SLETTES
-
-##H1.2: There is an effect of follower in relation to gender: leaders tend to surrender more to men than to women
-```{r plot of H1.2}
-H1.2 <- ggplot(data_db, aes(x = Follower_gender, y = leader_behavior, fill = Follower_gender)) +
-  labs(x = "Follower gender", y = "Predicted propensity to surrender", title = "H1.2") +
-  geom_boxplot(aes(x = Follower_gender, Estimate) , data = pred_1, width = 0.5) + 
-  theme(legend.position = "none", panel.grid.minor = element_blank()) + 
-  geom_violin(aes(x = Follower_gender, y = Estimate), data = pred_1, trim = FALSE, width =1, alpha = 0.1) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred_1$Estimate), max(pred_1$Estimate), length.out=5), 0.5))) + 
-  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_fill_manual(values=c("orange", "blue")) +
-  theme(plot.title = element_text(hjust = 0.5))+ 
-  theme(text = element_text(size=20))
-
-H1.2
-
-```
-
-
-###H1.3: There is an interaction effect: Female leaders are more discriminative as to their followers gender than male leaders are, i.e. for female leaders, the gender of the follower makes a larger difference to their decision than it does for male leaders.
+###H1.1 og H1.2: 
 ```{r plot of H1.3}
-H1.3 <- ggplot(pred_1, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
+H1.1_2 <- ggplot(pred_1, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
   geom_violin(aes(x = Leader_gender, y = Estimate), data = pred_1, width = 0.7, alpha = 0.6) + 
   geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
   scale_y_continuous(breaks = sort(c(seq(min(pred_1$Estimate), max(pred_1$Estimate), length.out=5), 0.5))) + 
@@ -391,7 +347,7 @@ H1.3 <- ggplot(pred_1, aes(x = Leader_gender, y = Estimate, fill = Follower_gend
   theme(text = element_text(size=20))
 
 
-H1.3
+H1.1_2
 
 ```
 
@@ -417,48 +373,9 @@ pred_2 <-
   bind_cols(nd_2)
 ```
 
-#SKAL EVT SLETTES
-
-###H2.1: There is an effect of leader in relation to gender: male leaders tend to surrender less than female leaders
-```{r plot of H2.1}
-
-H2.1 <- ggplot(data_db, aes(x = Leader_gender, y = leader_behavior, fill = Leader_gender)) +
-  labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "H2.1") +
-  geom_boxplot(aes(x = Leader_gender, Estimate) , data = pred_2, width = 0.5) + 
-  theme(legend.position = "none", panel.grid.minor = element_blank()) + 
-  geom_violin(aes(x = Leader_gender, y = Estimate), data = pred_2, trim = FALSE, width =1, alpha = 0.1) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred_2$Estimate), max(pred_2$Estimate), length.out=5), 0.5))) + 
-  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_fill_manual(values=c("orange", "blue"))  + 
-  theme(text = element_text(size=20))
-
-H2.1
-
-```
-
-#SKAL EVT SLETTES
-
-
-###H2.2: There is an effect of follower in relation to gender: leaders tend to surrender more to men than to women
-```{r plot of H2.2}
-
-H2.2 <- ggplot(data_db, aes(x = Follower_gender, y = leader_behavior, fill = Follower_gender)) +
-  labs(x = "Follower gender", y = "Predicted propensity to surrender", title = "H2.2") +
-  geom_boxplot(aes(x = Follower_gender, Estimate) , data = pred_2, width = 0.5) + 
-  theme(legend.position = "none", panel.grid.minor = element_blank()) + 
-  geom_violin(aes(x = Follower_gender, y = Estimate), data = pred_2, trim = FALSE, width =1, alpha = 0.1) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred_2$Estimate), max(pred_2$Estimate), length.out=5), 0.5))) + 
-  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_fill_manual(values=c("orange", "blue"))  + 
-  theme(text = element_text(size=20))
-
-H2.2
-```
-
-
-###H2.3: There is an interaction effect: Female leaders are more discriminative as to their followers gender than male leaders are, i.e. for female leaders, the gender of the follower makes a larger difference to their decision than it does for male leaders.
+###H2.1 og H2.2:
 ```{r plot of H2.3}
-H2.3 <- ggplot(pred_2, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
+H2.1_2 <- ggplot(pred_2, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
   geom_violin(aes(x = Leader_gender, y = Estimate), data = pred_2, width = 0.7, alpha = 0.6) + 
   scale_y_continuous(breaks = sort(c(seq(min(pred_2$Estimate), max(pred_2$Estimate), length.out=5), 0.5))) + 
   theme(panel.grid.minor = element_blank()) + 
@@ -470,7 +387,7 @@ H2.3 <- ggplot(pred_2, aes(x = Leader_gender, y = Estimate, fill = Follower_gend
   theme(text = element_text(size=20)) +
   scale_y_continuous(labels = percent_format(accuracy = 2)) 
 
-H2.3
+H2.1_2
 ```
 
 
@@ -580,3 +497,58 @@ H4
 
 
 
+#Confidence investigation
+##Is there a correlation between confidence and accuracy? nd is it different for men and women? Baseret på artikel, Fleming & Lau (2014)
+```{r}
+
+#Make a variable of hard end easy trials
+data_db_all$difficulty_level <- ifelse(data_db_all$diff <=5 & data_db_all$diff >=-5, "hard", "easy")
+
+#Make a variable of high (1) and low confidence (0)
+data_db_all$confidence_level <- ifelse(data_db_all$Response <=2 & data_db_all$Response >=-2, 0, 1) #Motivate threshold
+
+
+#Make a confusion table of false and true positives and negatives
+Correct = filter(data_db_all, difficulty_level =="easy")$Correct
+Confidence = filter(data_db_all, difficulty_level =="easy")$confidence_level
+
+table(Correct, Confidence)
+
+#EASY TRIALS
+#Across gender sensitivity, easy trials
+roc1 <- roc(filter(data_db_all, difficulty_level =="easy")$Correct, filter(data_db_all, difficulty_level =="easy")$confidence_level)
+plot(roc1, legacy.axes = TRUE, asp = 0)
+auc(roc1) #finder arealet under kurven, bør være end 0.5
+
+#Female sensitivity, easy trials
+roc2 <- roc(filter(data_db_all, Gender =="Female" & difficulty_level =="easy")$Correct, filter(data_db_all, Gender =="Female" & difficulty_level =="easy")$confidence_level)
+plot(roc2, legacy.axes = TRUE, asp = 0)
+auc(roc2) #finder arealet under kurven, bør være højere end 0.5
+
+#Male sensitivity, easy trials 
+roc3 <- roc(filter(data_db_all, Gender =="Male" & difficulty_level =="easy")$Correct, filter(data_db_all, Gender =="Male" & difficulty_level =="easy")$confidence_level)
+plot(roc3, legacy.axes = TRUE, asp = 0)
+auc(roc3) #finder arealet under kurven, bør være højere end 0.5
+
+
+#HARD TRIALS
+#Across gender sensitivity, hard trials
+roc4 <- roc(filter(data_db_all, difficulty_level =="hard")$Correct, filter(data_db_all, difficulty_level =="hard")$confidence_level)
+plot(roc4, legacy.axes = TRUE, asp = 0)
+auc(roc4) #finder arealet under kurven, bør være end 0.5
+
+#Female sensitivity, hard trials
+roc5 <- roc(filter(data_db_all, Gender =="Female" & difficulty_level =="hard")$Correct, filter(data_db_all, Gender =="Female" & difficulty_level =="hard")$confidence_level)
+plot(roc5, legacy.axes = TRUE, asp = 0)
+auc(roc5) #finder arealet under kurven, bør være højere end 0.5
+
+#Male sensitivity, hard trials 
+roc6 <- roc(filter(data_db_all, Gender =="Male" & difficulty_level =="hard")$Correct, filter(data_db_all, Gender =="Male" & difficulty_level =="hard")$confidence_level)
+plot(roc6, legacy.axes = TRUE, asp = 0)
+auc(roc6) #finder arealet under kurven, bør være højere end 0.5
+
+```
+
+Akserne i ROC-curve kan forklares således 
+- Sensitivity: True positive rate: p(confidence | correct): "Hvis jeg svarer rigtigt, så svarer også at jeg er 100 % sikker"
+-  1-Specificity (True negative rate): p(confidence | incorrect)
