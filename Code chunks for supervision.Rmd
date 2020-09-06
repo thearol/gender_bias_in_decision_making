@@ -17,6 +17,7 @@ data_db_all <- read.csv("data_long_format_GBDM.csv")
 ```
 
 #Confidence investigation
+
 ##Is there a correlation between confidence and accuracy? nd is it different for men and women? Baseret på artikel, Fleming & Lau (2014)
 ```{r}
 
@@ -67,3 +68,7 @@ plot(roc6, legacy.axes = TRUE, asp = 0)
 auc(roc6) #finder arealet under kurven, bør være højere end 0.5
 
 ```
+
+
+
+
