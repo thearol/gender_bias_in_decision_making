@@ -12,20 +12,22 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #Loading packages
 ```{r loading packages, include = FALSE}
-library(brms);library(tidyverse); library(tidybayes); library(ggplot2); library(LaplacesDemon); library(tidyr); library(reshape2);library(pacman); library(tibble);library(tidyr)
+library(brms);library(tidyverse); library(tidybayes); library(ggplot2); library(LaplacesDemon); library(tidyr); library(reshape2);library(pacman); library(tibble);library(tidyr); library(digest)
 ```
 
 #Define path
 ```{r}
 #Defining path
-data_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/Data/") #Kiri
+#data_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/Data/") #Kiri
 
 #Thea
 #setwd("~/SocKultExam")
 #data_path = ("Data/") 
 
 #Signe
-#data_path = ("/Users/signeklovekjaer/gender_bias_in_decision_making/Gender_bias_study_1/Data/")
+data_path = ("/Users/signeklovekjaer/gender_bias_in_decision_making/Gender_bias_study_1/Data/")
+setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
+
 ```
 
 
@@ -48,8 +50,8 @@ for (i in files) {
 ```{r loading data with different amount of trials}
 #Setting different path for extraordinary files
 #kiri_path = ("~/SocKultExam/") #Thea
-kiri_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/kiri/")#Kiri
-#kiri_path = ("/Users/signeklovekjaer/gender_bias_in_decision_making/Gender_bias_study_1/kiri/") #Signe
+#kiri_path = ("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1/kiri/")#Kiri
+kiri_path = ("/Users/signeklovekjaer/gender_bias_in_decision_making/Gender_bias_study_1/kiri/") #Signe
 
 #Listing files in directory
 kiri_files <- list.files(path = kiri_path, pattern = "*.csv") 
@@ -137,6 +139,7 @@ data_a$SubjectID_right <- anonymize(data$SubjectID_right)
 
 #Create CSV
 ```{r}
-write.csv(data_a, file = "Gender_bias_study_1/anonymised_data.csv")
+write.csv(data_a, file = "anonymised_data.csv")
+
 ```
 

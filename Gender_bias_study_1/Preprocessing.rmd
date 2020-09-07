@@ -17,6 +17,8 @@ library(brms);library(tidyverse); library(tidybayes); library(ggplot2); library(
 
 #Loading data 
 ```{r}
+setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
+
 data <- read.csv("anonymised_data.csv")
 ```
 
@@ -108,22 +110,55 @@ names(data)[names(data) == 'Response_right'] <- 'confidence_right'
 ```
 
 
+```{r adding trial variable to dataset in wide format}
+#Creating a trial variable
+n = 1
+p = NULL
+data_j = NULL
+ for (p in unique(data$GroupNumber)){
+   if (n == 1) {
+     data_j <- filter(data, data$GroupNumber == p)
+     data_j <- cbind(data_j, as.data.frame(1:sum(complete.cases(data_j$GroupNumber))))
+     print(sum(complete.cases(data_j$GroupNumber)))
+     colnames(data_j)[46] <- "Trial"
+     n = n + 1
+     } else {
+     data_j <- rbind(data_j,mutate(filter(data, data$GroupNumber == p), Trial = 1:sum(complete.cases(filter(data, data$GroupNumber == p)$GroupNumber))))
+     print(sum(complete.cases(filter(data, data$GroupNumber == p)$GroupNumber)))
+     n = n + 1
+   }
+ }
+
+data = data_j
+
+#remove extra trials (above 127) to have equal number of trials for all participants
+data <- filter(data, data$Trial<=127)
+```
+
+
+
 #Sensitivity scores, partial pooling
 We need one column containing answer from both left and right in order to allow pooling between all participants
 
 ##Long format
 ```{r making long format, include = FALSE}
 #Subsetting the left data
-left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, left_answer, joint_answer, Correct_left, Correct_joint, dif_blue_abs))
+left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, left_answer, joint_answer, Correct_left, Correct_joint, dif_blue_abs, Trial))
 
 #Changing names
-names(left) <- c("GroupNumber", "unique", "dif_blue", "answer", "joint_answer", "Correct", "Correct_joint", "dif_blue_abs")
+names(left) <- c("GroupNumber", "unique", "dif_blue", "answer", "joint_answer", "Correct", "Correct_joint", "dif_blue_abs", "Trial")
+
+#Adding a side variable
+left$Side <- "Left"
 
 #Subsetting right data
-right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, right_answer, joint_answer, Correct_left, Correct_joint, dif_blue_abs))
+right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, right_answer, joint_answer, Correct_left, Correct_joint, dif_blue_abs, Trial))
 
 #Chainging names
-names(right) <- c("GroupNumber", "unique", "dif_blue", "answer", "joint_answer", "Correct", "Correct_joint", "dif_blue_abs")
+names(right) <- c("GroupNumber", "unique", "dif_blue", "answer", "joint_answer", "Correct", "Correct_joint", "dif_blue_abs", "Trial")
+
+#Adding a side variable
+right$Side <- "Right"
 
 #Removing half the joint data to inform the model, there is only one. 
 right$Correct_joint <- NA
@@ -137,133 +172,188 @@ ldata$Correct_joint[is.na(ldata$joint_answer)] <- NA
 
 ```
 
-##Modelling sensitivity scores (using answer)
-```{r creating model with partial pooling, individual}
 
-#Getting priors
-get_prior(answer ~ dif_blue + (1+ dif_blue|unique), family = "bernoulli", data = ldata)
+##Modelling sensitivity scores with a rolling window
+```{r rolling window sensitivity model, eval = FALSE}
 
-#Defining priors
-prior =  c(
-  prior(normal(0,0.125), class = "b", coef = "dif_blue"),
-  prior(normal(0,0.17), class = "Intercept"),
-  prior(normal(0,0.125), class = "sd", coef = "dif_blue", group = "unique"),
-  prior(normal(0,0.17), class = "sd", coef = "Intercept", group = "unique")
-)
+#Making a number of iterations variable
+n = 1
+s = 1
+t = 10
+k = 0
 
-  
-#Defining paths for plots
-trans_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/transition/trans_plot_sensitivity.jpeg")
-pp_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/pp_check/pp_plot_sensitivity.jpeg")
-
-marginal_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/marginal/marginal_plot_sensitivity.jpeg")
-
-
-#Prior predictive check
-prior_check <- brm( answer ~ dif_blue + (dif_blue|unique), prior = prior,
-           data = ldata, sample_prior = "only",iter = 4000, family = "bernoulli")
-
-
-#Making the model
-m_sensitivity <- brm(
-  answer ~ dif_blue + (1+dif_blue|unique),
-  data = ldata,
-  prior = prior,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123 # Adding a seed makes results reproducible.
-) 
-
-
-#Marginal effects plot: Plotted and saved
-jpeg(file=marginal_path)
-print(marginal_effects(m_sensitivity))
-dev.off()
-  
-#transition plot: Plotted and saved
-jpeg(file=trans_path)
-print(plot(m_sensitivity))
-dev.off()
-
-#pp_check plot: Plotted and saved
-jpeg(file=pp_path)
-print(pp_check(prior_check, nsamples = 100))
-dev.off()
-
-```
-
-
-##Saving estimates from sensitivity
-```{r}
-#Saving the estimates
-
-#Saving random effect for individual 
-ranef <- as.data.frame(ranef(m_sensitivity))[,1:2] #Intercept
-ranef <- cbind(ranef, as.data.frame(ranef(m_sensitivity))[,5:6]) #Slope
-
-#Adding fixed effects to random effect
-fixef <- as.data.frame(fixef(m_sensitivity)) #Making data frame of fixed effects
-
-sensitivity_scores <-data.frame(matrix(ncol = 0, nrow = 80))
-
-sensitivity_scores$Slope_ranef_fixef_estimate <- ranef[, 3] + fixef[1, 2] #Adding fixef of slope to ranef of slope
-
-
-#Adding rownames
-sensitivity_scores <- cbind(Row.Names = rownames(ranef), as.data.frame(sensitivity_scores))
-
-write.csv(sensitivity_scores, file = "sensitivity_scores.csv")
-```
-
-#Making a wide format 
-```{r creating wide format, include = FALSE, this does not work}
-
-#Creating two empty columns in data for sensitivity scores
-data$sensitivity_right <- NA
-data$sensitivity_left <- NA
-
-#Looping through sensitivity scores and matching them to the right player
-t = 1
-for (i in sensitivity_scores$Row.Names) {
+###Making a loop for individual slope
+for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it is the biggest amount of trials 
   print(i)
-  for (p in data$unique_ID_right) {
-    if(i == p){
-      data$sensitivity_right[data$unique_ID_right == p] = sensitivity_scores$Slope_ranef_fixef_estimate[t]
-    } 
+  if(i == 10){ #If the first 10
+    for (p in unique(ldata$unique)){
+      if (n == 1) {
+        data_i <- filter(ldata, ldata$unique == p)[s:t, ]
+        n = n + 1
+        } else {
+          data_i <- rbind(data_i, filter(ldata, ldata$unique == p)[s:t, ])
+          n = n + 1
+          } }
+    
+      #Defining priors
+      prior_sensitivity =  c(
+      prior(normal(0,0.1), class = "b", coef = "dif_blue"),
+      prior(normal(0,0.2), class = "Intercept"),
+      prior(normal(0,0.1), class = "sd", coef = "dif_blue", group = "unique"),
+      prior(normal(0,0.2), class = "sd", coef = "Intercept", group = "unique")
+    )
+    
+      #Making the model - using answer
+      m_sensitivity <- brm(
+      answer ~ dif_blue + (1+dif_blue|unique),
+      data = data_i,
+      prior = prior_sensitivity,
+      family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
+      seed = 123,# Adding a seed makes results reproducible.
+      cores=2,
+      chains=2,
+      #control = list(adapt_delta = 0.9)
+      )
+    
+    
+    ###SAVING ESTIMATES
+    #Saving random effect for individual slope
+    sensitivity_scores_roll <- as.data.frame(ranef(m_sensitivity))[,5] + fixef(m_sensitivity)[2,1]
+    
+    #Adding rownames
+    sensitivity_scores_roll <- cbind(Row.Names = rownames(as.data.frame(ranef(m_sensitivity))[,5:6]), as.data.frame(sensitivity_scores_roll))
+    
+    colnames(sensitivity_scores_roll) <- c("unique", i)
   }
-  t = t+1
-}
-
-
-#Looping through sensitivity scores and matching them to the left player
-t = 1
-for (i in sensitivity_scores$Row.Names) {
-  print(i)
-  for (p in data$unique_ID_left) {
-    if(i == p){
-      data$sensitivity_left[data$unique_ID_left == p] = sensitivity_scores$Slope_ranef_fixef_estimate[t]
-    } 
-  }
-  t = t+1
-}
+    
+    if(i > 10){
+      k = k + 1
+      n = 1
+      s = s + 1
+      t = t + 1
+      for (r in unique(ldata$unique)){
+        if (n == 1) {
+          data_i <- filter(ldata, ldata$unique == r)[s:t, ]
+          n = n + 1
+        } else {
+          data_i <- rbind(data_i, filter(ldata, ldata$unique == r)[s:t, ])
+          n = n + 1
+          } }
+    
+        #Defining priors
+        prior_sensitivity =  c(
+        prior(normal(0,0.1), class = "b", coef = "dif_blue"),
+        prior(normal(0,0.2), class = "Intercept"),
+        prior(normal(0,0.1), class = "sd", coef = "dif_blue", group = "unique"),
+        prior(normal(0,0.2), class = "sd", coef = "Intercept", group = "unique")
+      )
+    
+        #Making the model - using answer
+        m_sensitivity <- brm(
+        answer ~ dif_blue + (1+dif_blue|unique),
+        data = data_i,
+        prior = prior_sensitivity,
+        family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
+        seed = 123,# Adding a seed makes results reproducible.
+        cores=2,
+        chains=2,
+        #control = list(adapt_delta = 0.9)
+        )
+        
+    
+    ###SAVING ESTIMATES
+    
+    #Saving random effect for individual slope
+    sensitivity_scores_roll_temp <- as.data.frame(ranef(m_sensitivity))[,5] + fixef(m_sensitivity)[2,1]
+    
+    #Cbind new results to sensitivity score
+    sensitivity_scores_roll <- cbind(sensitivity_scores_roll, sensitivity_scores_roll_temp)
+    
+    colnames(sensitivity_scores_roll)[k+2] <- i
+    
+} }
+    
+   
 
 ```
+
+#Write a csv-file with the sensitivity scores
+```{r write and read csv, eval = FALSE}
+  
+write.csv(sensitivity_scores_roll, file = "sensitivity_scores_rolling.csv")
+
+#Loading the sensitivity scores again?
+sensitivity_scores_roll <- read.csv("sensitivity_scores_rolling.csv")
+```
+
+#Merge the sensitivity scores with the existing data frame
+```{r merge the new results with the long data frame}
+
+#Reshaping the data
+mdata <- melt(sensitivity_scores_roll, id.vars=c("unique"), measure.vars = c(colnames(sensitivity_scores_roll)[3:120]), variable.name = "Trial", value.name = "Sensitivity_roll")
+
+#Remove useless X in trial column
+mdata$Trial <-str_replace_all(mdata$Trial, "X", "")
+
+#Merge ldata with sensitivity scores
+sensitivity_scores <- merge(ldata, mdata, by = c("unique", "Trial"), all.x = TRUE, all.y = TRUE) #Insert NAs on trials lower than 10
+
+```
+
+#Transforming the data into wide format
+
+```{r make wide to merge with disagree data}
+#Subsetting to include only relevant columns
+sensitivity_scores <- select(sensitivity_scores, -c("GroupNumber", "dif_blue","answer", "joint_answer", "Correct", "Correct_joint", "dif_blue_abs"))
+
+#Dividing into left and right data
+sensitivity_scores_right <- filter(sensitivity_scores, Side == "Right")
+sensitivity_scores_left <- filter(sensitivity_scores, Side == "Left")
+
+#Deleting side column
+sensitivity_scores_right <- subset(sensitivity_scores_right, select = -c(Side))
+sensitivity_scores_left <- subset(sensitivity_scores_left, select = -c(Side))
+
+#Renaming columns
+colnames(sensitivity_scores_left) <-  c("unique_ID_left","Trial_left", "Sensitivity_roll_left")
+colnames(sensitivity_scores_right) <-  c("unique_ID_right", "Trial_right",  "Sensitivity_roll_right")
+
+
+#Creating a column for trial to the right
+data$Trial_right <- data$Trial 
+
+#Creating an identical column for trial to the left
+colnames(data)[46] <- "Trial_left"
+
+#Merging left data with sensitivity scores
+data <- merge(data, sensitivity_scores_left, by = c("unique_ID_left", "Trial_left"))
+
+#Merging right data with sensitivity scores
+data <- merge(data, sensitivity_scores_right, by = c("unique_ID_right", "Trial_right"))
+
+
+```
+
 
 #Adding variable: Skill difference
 ```{r calculate skill difference}
 
-#Calculating skill difference
 data$skill_dif <- 0 #Creating column of 0
-data$skill_dif <- ifelse(data$chosen_leader == "Left_lead", data$sensitivity_left/data$sensitivity_right, data$sensitivity_right/data$sensitivity_left) #calculating skill difference as a ratio between leader and follower sensitivity
+
+
+#Calculating skill difference
+data$skill_dif <- ifelse(data$chosen_leader == "Left_lead", data$Sensitivity_roll_left/data$Sensitivity_roll_right, data$Sensitivity_roll_right/data$Sensitivity_roll_left) #calculating skill difference as a ratio between leader and follower sensitivity
 
 #Insert NAs in all agree trials
 data$skill_dif[data$chosen_leader == "Agree"] <- NA 
 ```
 
 #Making long format
+
 ##Subsetting left data
 ```{r}
 #Subset to left data
-data_left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, confidence_left, leader_behaviour, sensitivity_left, Gender_left, left_answer)) #take all data for left participant
+data_left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, confidence_left, leader_behaviour, Sensitivity_roll_left, Gender_left, left_answer)) #take all data for left participant
 
 data_left$skill_dif[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
 
@@ -276,7 +366,7 @@ data_left$Follower_gender[data_left$chosen_leader != 'Left_lead'] <- NA #insert 
 ##Subsetting right data
 ```{r}
 #Subset right data
-data_right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, confidence_right, leader_behaviour, sensitivity_right, Gender_right, right_answer)) #Subsetting right data
+data_right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, confidence_right, leader_behaviour, Sensitivity_roll_right, Gender_right, right_answer)) #Subsetting right data
 
 data_right$skill_dif[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
 
@@ -290,10 +380,13 @@ data_right$Follower_gender[data_right$chosen_leader != 'Right_lead'] <- NA #inse
 
 ##Merging data frames
 ```{r make long format}
-#Renaming the columns to match
-names(data_left) <- c("GroupNumber", "Subject", "dif_blue", "dif_blue_abs", "chosen_leader", "Leader_gender", "Follower_gender", "skill_dif", "confidence", "leader_behaviour", "skill_level", "Gender", "answer")
 
-names(data_right) <- c("GroupNumber", "Subject", "dif_blue", "dif_blue_abs", "chosen_leader", "Leader_gender", "Follower_gender", "skill_dif", "confidence", "leader_behaviour", "skill_level", "Gender", "answer")
+#rename columns to not contain left or right
+names(data_left) <- gsub(pattern = "_left", replacement = "", x = names(data_left))
+names(data_left) <- gsub(pattern = "left_", replacement = "", x = names(data_left))
+names(data_right) <- gsub(pattern = "_right", replacement = "", x = names(data_right))
+names(data_right) <- gsub(pattern = "right_", replacement = "", x = names(data_right))
+
 
 #Rbinding left and right data
 data_long <- rbind(data_left, data_right)
@@ -313,6 +406,10 @@ write.csv(data_long, file = "data_long_sensitivity.csv")
 data_disagree_long <- na.omit(data_long)
 
 ```
+
+
+#SIGNE ER NÅET HERTIL!!!! 
+
 
 #Cleaning the long data
 ```{r}
