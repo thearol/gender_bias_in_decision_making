@@ -12,8 +12,8 @@ knitr::opts_chunk$set(echo = TRUE)
 #Preparing markdown
 ```{r setting working directory}
 #set working directory 
-setwd("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1") #Kiri
-#setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
+#setwd("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1") #Kiri
+setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
 #setwd("~/SocKultExam") #Thea
 ```
 
@@ -26,8 +26,8 @@ p_load(lme4, lmerTest, brms, tidyverse, stringi, tm, ggrepel, ggbeeswarm)
 #Loading sensitivity scores (wide)
 ```{r load data}
 #read csv files with estimates
-data <- read.csv("data_disagree_long_sensitivity.csv")[,2:14]
-data_long <- read.csv("data_long_sensitivity.csv")[,2:14]
+data <- read.csv("data_disagree_long_sensitivity.csv")[,3:18]
+data_long <- read.csv("data_long_sensitivity.csv")[,2:17]
 ```
 
 #Data processing
@@ -38,64 +38,6 @@ data$Leader_gender <- as.factor(data$Leader_gender)
 ```
 
 
-#Modelling primary models
-##The full model with skill difference (full)
-```{r}
-#Get priors
-get_prior(leader_behaviour ~ 0 + skill_dif * Leader_gender:Follower_gender + (1 + skill_dif:Follower_gender | Subject ), data = data, family = "bernoulli")
-
-#Defining priors
-prior_full <- c(
-  prior(normal(0,.2),class="b"),
-  prior(normal(0,.1),class="sd")
-)
-
-#prior predictive check
-prior_check_full <- brm(leader_behaviour ~ 0 + skill_dif * Leader_gender * Follower_gender + (0 + skill_dif:Follower_gender | Subject ), prior = prior_full, data = data, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
-
-pp_check(prior_check_full, nsamples = 100)
-
-# Model w skill difference
-m_full <- brm(
-  leader_behaviour ~ 0 + skill_dif * Leader_gender * Follower_gender + (1 + skill_dif:Follower_gender | Subject),
-  data = data,
-  prior = prior_full,
-  sample_prior=T,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123, # Adding a seed makes results reproducible.
-  cores=2,
-  chains=2,
-  control = list(adapt_delta = 0.9) #only for answer model, due to Eff.Sample
-) 
-
-summary(m_full)
-```
-
-###Plotting the model transition, full
-```{r}
-#Defining paths for plots
-trans_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/transition/trans_plot_full.jpeg")
-pp_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/pp_check/pp_plot_full.jpeg")
-
-marginal_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/marginal/marginal_plot_full.jpeg")
-
-#Marginal effects plot: Plotted and saved
-jpeg(file=marginal_path)
-print(marginal_effects(m_full))
-dev.off()
-  
-#transition plot: Plotted and saved
-jpeg(file=trans_path)
-print(plot(m_full))
-dev.off()
-
-#pp_check plot: Plotted and saved
-jpeg(file=pp_path)
-print(pp_check(prior_check_full, nsamples = 100))
-dev.off()
-
-```
-
 ##Model without skill difference (basic)
 ```{r model without skill difference}
 #Defining priors
@@ -105,13 +47,13 @@ prior_basic <- c(
 )
 
 #prior predictive check
-prior_check_basic <- brm(leader_behaviour ~ 0 + Leader_gender : Follower_gender + (1 + skill_dif:Follower_gender | Subject), prior = prior_basic, data = data, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
+prior_check_basic <- brm(leader_behaviour ~ 0 + Leader_gender : Follower_gender + (0 + skill_dif_c:Follower_gender | Subject), prior = prior_basic, data = data, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
 
 pp_check(prior_check_basic, nsamples = 100)
 
 #model without skill difference
 m_basic <- brm(
-  leader_behaviour ~ 0 + Leader_gender : Follower_gender + (1 + skill_dif:Follower_gender | Subject),
+  leader_behaviour ~ 0 + Leader_gender : Follower_gender + (0 + skill_dif_c:Follower_gender | Subject),
   data = data,
   prior = prior_basic,
   sample_prior=T,
@@ -119,39 +61,59 @@ m_basic <- brm(
   seed = 123, # Adding a seed makes results reproducible.
   chains=2,
   cores=2,
-  control = list(adapt_delta = 0.9) 
+  control = list(adapt_delta = 0.99) 
 ) 
 
+#Model summary and plots
+
+summary(m_basic)
+plot(m_basic)
+marginal_effects(m_basic)
+
 ```
 
 
-###Plotting the model transition, basic
+##The full model with skill difference (full)
 ```{r}
-#Defining paths for plots
-trans_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/transition/trans_plot_basic.jpeg")
-pp_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/pp_check/pp_plot_basic.jpeg")
+#Get priors
+get_prior(leader_behaviour ~ 0 + skill_dif_c * Leader_gender:Follower_gender + (0 + skill_dif_c:Follower_gender | Subject ), data = data, family = "bernoulli")
 
-marginal_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/marginal/marginal_plot_basic.jpeg")
+#Defining priors
+prior_full <- c(
+  prior(normal(0,.2),class="b"),
+  prior(normal(0,.1),class="sd")
+)
 
-#Marginal effects plot: Plotted and saved
-jpeg(file=marginal_path)
-print(marginal_effects(m_basic))
-dev.off()
-  
-#transition plot: Plotted and saved
-jpeg(file=trans_path)
-print(plot(m_basic))
-dev.off()
+#prior predictive check
+prior_check_full <- brm(leader_behaviour ~ 0 + skill_dif_c * Leader_gender : Follower_gender + (0 + skill_dif_c:Follower_gender | Subject ), prior = prior_full, data = data, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
 
-#pp_check plot: Plotted and saved
-jpeg(file=pp_path)
-print(pp_check(prior_check_basic, nsamples = 100))
-dev.off()
+pp_check(prior_check_full, nsamples = 100)
+
+# Model w skill difference
+m_full <- brm(
+  leader_behaviour ~ 0 + skill_dif_c * Leader_gender : Follower_gender + (0 + skill_dif_c:Follower_gender | Subject),
+  data = data,
+  prior = prior_full,
+  sample_prior=T,
+  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
+  seed = 123, # Adding a seed makes results reproducible.
+  cores=2,
+  chains=2,
+  control = list(adapt_delta = 0.99) #only for answer model, due to Eff.Sample
+) 
+
+summary(m_full)
+plot(m_full)
+marginal_effects(m_full)
 ```
+
 
 #Model comparaison
 ```{r}
 waic(m_full, m_basic)
+waic(m_full)
+waic(m_basic)
+
 ```
 
 
@@ -167,13 +129,13 @@ prior_mf <- c(
 )
 
 #prior predictive check
-prior_check_mf <- brm(answer ~ dif_blue + dif_blue:Gender + (1+dif_blue|Subject), prior = prior_mf, data = data_long, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
+prior_check_mf <- brm(answer ~ dif_blue*Gender + (1+dif_blue|Subject), prior = prior_mf, data = data_long, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
 
 pp_check(prior_check_mf, nsamples = 100)
 
 # Model w skill difference
 skill_mf <- brm(
-  answer ~ dif_blue + dif_blue:Gender + (1+dif_blue|Subject), 
+  answer ~ dif_blue*Gender + (1+dif_blue|Subject), 
   data = data_long,
   prior = prior_mf,
   family = "bernoulli",
@@ -184,42 +146,17 @@ skill_mf <- brm(
 ) 
 
 summary(skill_mf)
+plot(skill_mf)
+marginal_effects(skill_mf)
 
 ```
 
-##Plotting the model transition
-```{r}
-#Defining paths for plots
-trans_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/transition/trans_plot_mf_skill.jpeg")
-pp_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/pp_check/pp_plot_mf_skill.jpeg")
-
-marginal_path = file.path("~/gender_bias_in_decision_making/Gender_bias_study_1/plots/marginal/marginal_plot_mf_skill.jpeg")
-
-#Marginal effects plot: Plotted and saved
-jpeg(file=marginal_path)
-print(marginal_effects(skill_mf))
-dev.off()
-  
-#transition plot: Plotted and saved
-jpeg(file=trans_path)
-print(plot(skill_mf))
-dev.off()
-
-#pp_check plot: Plotted and saved
-jpeg(file=pp_path)
-print(pp_check(prior_check, nsamples = 100))
-dev.off()
-
-```
-
- 
 ##Hypothesis testing: Men perform better than women
 ```{r}
 #Men perform better than women
-hypothesis(skill_mf, "dif_blue:GenderMale>dif_blue")
+hypothesis(skill_mf, "dif_blue = (dif_blue+dif_blue:GenderMale)")
 
-#More evidence for the alternative hypothesis i.e. women perform better than men
-hypothesis(skill_mf, "dif_blue:GenderMale<dif_blue")
+#No
 
 ```
 
@@ -230,6 +167,11 @@ hypothesis(skill_mf, "dif_blue:GenderMale<dif_blue")
 ```{r H1}
 #H1: In general male leaders tend to surrender less than female leaders
 hypothesis(m_basic, "(Leader_gender0:Follower_gender0 + Leader_gender0:Follower_gender1)/2 < (Leader_gender1:Follower_gender0 + Leader_gender1:Follower_gender1)/2")
+
+
+#full model
+hypothesis(m_full, "(Leader_gender0:Follower_gender0 + Leader_gender0:Follower_gender1)/2 < (Leader_gender1:Follower_gender0 + Leader_gender1:Follower_gender1)/2")
+
 ```
 
 ##H1: Plotting
@@ -272,6 +214,8 @@ H1 <- ggplot(data, aes(x = Leader_gender, y = leader_behaviour, fill = Leader_ge
   geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
   scale_fill_manual(values=c("palegreen3", "gold2")) +
   theme(plot.title = element_text(hjust = 0.5))
+
+H1
 ```
 
 
@@ -293,15 +237,8 @@ H2 <- ggplot(data, aes(x = Follower_gender, y = leader_behaviour, fill = Followe
   geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
   scale_fill_manual(values=c("palegreen3", "gold2"))+
   theme(plot.title = element_text(hjust = 0.5))
-```
 
-#H3: There is an interaction, males are more discriminative as to their followers gender than females are
-```{r H3: there is an interaction, males are more discriminative as to their followers gender than females are }
-# H3: There is an interaction: males are more discriminative as to their followers gender than females are
-hypothesis(m_basic, "(Leader_gender0:Follower_gender0 - Leader_gender0:Follower_gender1) > (Leader_gender1:Follower_gender0 - Leader_gender1:Follower_gender1)")
-
-#There is more evidence for the contrary, i.e. females are more discriminative as to their followers gender than males are
-hypothesis(m_basic, "(Leader_gender0:Follower_gender0 - Leader_gender1:Follower_gender1) < (Leader_gender1:Follower_gender0 - Leader_gender1:Follower_gender1)")
+H2
 ```
 
 
@@ -317,5 +254,7 @@ H3 <- ggplot(pred, aes(x = Leader_gender, y = Estimate, fill = Follower_gender))
   labs(fill = "Follower gender") + 
   scale_fill_manual(values=c("palegreen3", "gold2"))+
   theme(plot.title = element_text(hjust = 0.5))
+
+H3
 ```
 

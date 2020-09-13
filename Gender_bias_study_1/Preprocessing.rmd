@@ -403,6 +403,14 @@ data_long <- rbind(data_left, data_right)
 
 
 
+```{r}
+#remove the groupnumber from subject name to account for within participant variation
+data_long$Subject <- as.character(data_long$unique_ID)
+
+data_long$Subject <- gsub(".*_", "", data_long$Subject)
+```
+
+
 #Write CSV with sensitivity scores and clean data
 ```{r}
 write.csv(data_long, file = "data_long_sensitivity.csv")
