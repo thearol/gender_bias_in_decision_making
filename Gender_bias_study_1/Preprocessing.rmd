@@ -101,6 +101,7 @@ data$leader_behaviour[data$leader_behaviour == "stick"] <- 0
 
 ```
 
+## CONFIDENCE SHOULD PROBABLY BE DELETED AS WE DO NOT INCLUDE IT IN STUDY 1
 ##Adding variable: Confidence
 ```{r}
 #rename confidence
@@ -344,8 +345,14 @@ data$skill_dif <- 0 #Creating column of 0
 #Calculating skill difference
 data$skill_dif <- ifelse(data$chosen_leader == "Left_lead", data$Sensitivity_roll_left/data$Sensitivity_roll_right, data$Sensitivity_roll_right/data$Sensitivity_roll_left) #calculating skill difference as a ratio between leader and follower sensitivity
 
+#centering skill difference, so that a skill difference of 0 resembles equal skill
+data$skill_dif_c <- 0
+data$skill_dif_c <- (data$skill_dif)-1 
+
 #Insert NAs in all agree trials
 data$skill_dif[data$chosen_leader == "Agree"] <- NA 
+data$skill_dif_c[data$chosen_leader == "Agree"] <- NA 
+
 ```
 
 #Making long format
@@ -353,22 +360,20 @@ data$skill_dif[data$chosen_leader == "Agree"] <- NA
 ##Subsetting left data
 ```{r}
 #Subset to left data
-data_left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, confidence_left, leader_behaviour, Sensitivity_roll_left, Gender_left, left_answer)) #take all data for left participant
-
-data_left$skill_dif[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
+data_left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, skill_dif_c, confidence_left, leader_behaviour, Sensitivity_roll_left, Gender_left, left_answer, Trial_left)) #take all data for left participant
 
 data_left$leader_behaviour[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
 data_left$Leader_gender[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
 data_left$Follower_gender[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
+data_left$skill_dif[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
+data_left$skill_dif_c[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
 
 ```
 
 ##Subsetting right data
 ```{r}
 #Subset right data
-data_right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, confidence_right, leader_behaviour, Sensitivity_roll_right, Gender_right, right_answer)) #Subsetting right data
-
-data_right$skill_dif[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
+data_right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, skill_dif_c, confidence_right, leader_behaviour, Sensitivity_roll_right, Gender_right, right_answer, Trial_right)) #Subsetting right data
 
 data_right$leader_behaviour[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
 
@@ -376,6 +381,9 @@ data_right$Leader_gender[data_right$chosen_leader != 'Right_lead'] <- NA #insert
 
 data_right$Follower_gender[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
 
+data_right$skill_dif[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
+
+data_right$skill_dif_c[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
 ```
 
 ##Merging data frames
@@ -394,9 +402,12 @@ data_long <- rbind(data_left, data_right)
 ```
 
 
+
 #Write CSV with sensitivity scores and clean data
 ```{r}
 write.csv(data_long, file = "data_long_sensitivity.csv")
+
+data_long <- read.csv("data_long_sensitivity.csv")
 ```
 
 
@@ -408,20 +419,12 @@ data_disagree_long <- na.omit(data_long)
 ```
 
 
-#SIGNE ER NÅET HERTIL!!!! 
-
-
 #Cleaning the long data
 ```{r}
 #remove the groupnumber from subject name to account for within participant variation
-data_disagree_long$Subject <- as.character(data_disagree_long$Subject)
-data_disagree_long$Subject <- tolower(data_disagree_long$Subject)
+data_disagree_long$Subject <- as.character(data_disagree_long$unique_ID)
 
-data_disagree_long$Subject <- str_extract(data_disagree_long$Subject,"[a-z]+")
-
-#scale the skill difference variable 
-data_disagree_long$skill_dif <- scale(data_disagree_long$skill_dif)
-
+data_disagree_long$Subject <- gsub(".*_", "", data_disagree_long$Subject)
 
 ```
 
