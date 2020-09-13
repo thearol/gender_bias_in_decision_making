@@ -30,7 +30,7 @@ data <- read.csv("data_disagree_long_sensitivity.csv")[,3:18]
 data_long <- read.csv("data_long_sensitivity.csv")[,2:17]
 ```
 
-#Data processing
+#Data 
 ```{r}
 #Changing the format of the leader and follower gender
 data$Follower_gender <- as.factor(data$Follower_gender)
@@ -108,11 +108,9 @@ marginal_effects(m_full)
 ```
 
 
-#Model comparaison
+#Model comparison
 ```{r}
 waic(m_full, m_basic)
-waic(m_full)
-waic(m_basic)
 
 ```
 
@@ -161,7 +159,7 @@ hypothesis(skill_mf, "dif_blue = (dif_blue+dif_blue:GenderMale)")
 ```
 
 
-#Hypothesis testing: H1, H2 og H3
+#Hypothesis testing: H1 and H2
 
 # H1: There is a leader effect: male leaders tend to surrender less than female leaders
 ```{r H1}
@@ -223,6 +221,8 @@ H1
 ```{r H2: there is a follower effect: leaders tend to surrender more to men than to women }
 # H2: There is a follower effect: leaders tend to surrender more to men than to women
 hypothesis(m_basic, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
+
+hypothesis(m_full, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
 ```
 
 ##H2: Plotting
@@ -242,19 +242,20 @@ H2
 ```
 
 
-##H3: plotting
+##both hypotheses visualized
 ```{r}
-H3 <- ggplot(pred, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
+main_plot <- ggplot(pred, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
   geom_violin(aes(x = Leader_gender, y = Estimate), data = pred, width = 0.7, alpha = 0.8) + 
   geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
   scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5)), labels = rounding) + 
   theme(panel.grid.minor = element_blank()) + 
-  labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "Hypothesis 3") + 
+  labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "Both hypotheses") + 
   stat_summary(fun.data=mean_sdl, geom="pointrange", color="black", position = position_dodge(width = 0.7), alpha = 0.8) +
   labs(fill = "Follower gender") + 
   scale_fill_manual(values=c("palegreen3", "gold2"))+
   theme(plot.title = element_text(hjust = 0.5))
 
-H3
+main_plot
+
 ```
 
