@@ -13,14 +13,14 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r setting working directory}
 #set working directory 
 #setwd("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1") #Kiri
-setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
-#setwd("~/SocKultExam") #Thea
+#setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
+setwd("~/gender_bias_in_decision_making/Gender_bias_study_1") #Thea
 ```
 
 ```{r loading libraries}
 #load libraries
 library(pacman)
-p_load(lme4, lmerTest, brms, tidyverse, stringi, tm, ggrepel, ggbeeswarm)
+p_load(lme4, lmerTest, brms, tidyverse, stringi, tm, ggrepel, ggbeeswarm, boot)
 ```
 
 #Loading sensitivity scores (wide)
@@ -155,6 +155,10 @@ marginal_effects(skill_mf)
 #Men perform better than women
 hypothesis(skill_mf, "dif_blue < (dif_blue+dif_blue:GenderMale)")
 
+hypothesis(skill_mf, "dif_blue < (dif_blue+dif_blue:GenderMale)")
+
+hypothesis(skill_mf, "dif_blue > (dif_blue+dif_blue:GenderMale)")
+
 #No
 
 ```
@@ -169,7 +173,7 @@ hypothesis(m_basic, "(Leader_gender0:Follower_gender0 + Leader_gender0:Follower_
 
 
 #full model
-hypothesis(m_full, "(Leader_gender0:Follower_gender0 + Leader_gender0:Follower_gender1)/2 < (Leader_gender1:Follower_gender0 + Leader_gender1:Follower_gender1)/2")
+#hypothesis(m_full, "(Leader_gender0:Follower_gender0 + Leader_gender0:Follower_gender1)/2 < (Leader_gender1:Follower_gender0 + Leader_gender1:Follower_gender1)/2")
 
 ```
 
@@ -223,7 +227,10 @@ H1
 # H2: There is a follower effect: leaders tend to surrender more to men than to women
 hypothesis(m_basic, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
 
-hypothesis(m_full, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
+#testing the effect of inv.logit before hyp
+hypothesis(m_basic, "(inv.logit(Leader_gender0:Follower_gender0) + inv.logit(Leader_gender1:Follower_gender0))/2 > (inv.logit(Leader_gender0:Follower_gender1) + inv.logit(Leader_gender1:Follower_gender1))/2")
+
+#hypothesis(m_full, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
 ```
 
 ##H2: Plotting
@@ -259,4 +266,28 @@ main_plot <- ggplot(pred, aes(x = Leader_gender, y = Estimate, fill = Follower_g
 main_plot
 
 ```
+
+```{r}
+#Test
+
+thea_plot <- ggplot(pred, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
+  geom_violin(aes(x = Leader_gender, y = Estimate), data = pred, width = 0.7, alpha = 0.8) + 
+  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
+  scale_y_continuous(breaks = sort(c(seq(0.475, 0.575, length.out=5), 0.5)), labels = rounding) + 
+  theme(panel.grid.minor = element_blank()) + 
+  labs(x = "Leader gender", y = "Propensity to surrender", title = "TITLE?") + 
+  stat_summary(fun.data=mean_sdl, geom="pointrange", color="black", position = position_dodge(width = 0.7), alpha = 0.8) +
+  labs(fill = "Follower gender") + 
+  scale_fill_manual(values=c("palegreen3", "gold2"))+
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme(legend.title = element_text(color = "black", size = 16, face="bold"), legend.text = element_text(color = "black", size = 16)) +
+  theme(axis.text=element_text(size=14),axis.title=element_text(size=16,face="bold"))
+ 
+
+thea_plot
+
+```
+
+
+
 

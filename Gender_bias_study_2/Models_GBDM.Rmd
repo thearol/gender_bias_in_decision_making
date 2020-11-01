@@ -13,7 +13,7 @@ p_load(brms, tidyverse, tidybayes, ggplot2, LaplacesDemon, rethinking, tidyr, re
 
 #Setting directory
 ```{r}
-#setwd("~/gender_bias_in_decision_making/Gender_bias_study_2") #Signe
+setwd("~/gender_bias_in_decision_making/Gender_bias_study_2") #Signe
 setwd("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_2") #Kiri
 ```
 
@@ -202,6 +202,49 @@ marginal_effects(model_4)
 
 
 ```
+
+##Model 5, confidence only
+
+```{r Model 5, model only with confidence, for fun}
+
+#Defining priors 
+prior_5 <- c( 
+  prior(normal(0,.2),class="b"),
+  prior(normal(0,.1),class="sd")
+)
+
+#prior predictive check
+model_5_prior <- brm(leader_behavior ~ 0 + conf_dif_c + (0 + skill_dif_roll_c:Follower_gender | SubjectID), 
+                       prior = prior_5, 
+                       data = data_db, 
+                       sample_prior = "only",
+                       iter = 4000, 
+                       family = "bernoulli", 
+                       chains = 2, 
+                       cores = 2)
+
+pp_check(model_5_prior, nsamples = 100)
+
+#Model 5; only confience
+model_5 <- brm(leader_behavior ~ 0 + conf_dif_c + (0 + skill_dif_roll_c:Follower_gender | SubjectID),
+  data = data_db,
+  prior = prior_5,
+  sample_prior=T,
+  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
+  seed = 123, # Adding a seed makes results reproducible.
+  chains=4,
+  cores=4
+  #control = list(adapt_delta = 0.9) 
+) 
+
+#Model summary and plots
+summary(model_5)
+plot(model_5)
+marginal_effects(model_5)
+
+```
+
+
 
 
 #WAIC testing
