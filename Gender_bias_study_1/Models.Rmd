@@ -226,6 +226,9 @@ H1
 # H2: There is a follower effect: leaders tend to surrender more to men than to women
 hypothesis(m_basic, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
 
+#testing the effect of inv.logit before hyp
+hypothesis(m_basic, "(inv.logit(Leader_gender0:Follower_gender0) + inv.logit(Leader_gender1:Follower_gender0))/2 > (inv.logit(Leader_gender0:Follower_gender1) + inv.logit(Leader_gender1:Follower_gender1))/2")
+
 #hypothesis(m_full, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
 ```
 
