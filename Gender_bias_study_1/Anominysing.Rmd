@@ -137,6 +137,17 @@ data_a$SubjectID_right <- anonymize(data$SubjectID_right)
 
 ```
 
+#Delele confidence variable
+
+```{r dummy code response variable ---> delete confidence variable}
+
+data_a$Response_left <- ifelse(data_a$Response_left < 0, 0,1)
+data_a$Response_right <- ifelse(data_a$Response_right < 0, 0,1)
+
+```
+
+
+
 #Create CSV
 ```{r}
 write.csv(data_a, file = "anonymised_data.csv")

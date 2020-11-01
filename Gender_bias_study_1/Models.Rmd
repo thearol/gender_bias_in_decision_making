@@ -26,8 +26,9 @@ p_load(lme4, lmerTest, brms, tidyverse, stringi, tm, ggrepel, ggbeeswarm)
 #Loading sensitivity scores (wide)
 ```{r load data}
 #read csv files with estimates
-data <- read.csv("data_disagree_long_sensitivity.csv")[,3:18]
-data_long <- read.csv("data_long_sensitivity.csv")[,2:17]
+data <- read.csv("data_disagree_long_sensitivity.csv")[,3:17]
+data_long <- read.csv("data_long_sensitivity.csv")[,2:16]
+
 ```
 
 #Data 
@@ -74,7 +75,7 @@ marginal_effects(m_basic)
 
 
 ##The full model with skill difference (full)
-```{r}
+```{r, eval = FALSE}
 #Get priors
 get_prior(leader_behaviour ~ 0 + skill_dif_c * Leader_gender:Follower_gender + (0 + skill_dif_c:Follower_gender | Subject ), data = data, family = "bernoulli")
 
@@ -109,7 +110,7 @@ marginal_effects(m_full)
 
 
 #Model comparison
-```{r}
+```{r, eval = FALSE}
 waic(m_full, m_basic)
 
 ```
@@ -152,7 +153,7 @@ marginal_effects(skill_mf)
 ##Hypothesis testing: Men perform better than women
 ```{r}
 #Men perform better than women
-hypothesis(skill_mf, "dif_blue = (dif_blue+dif_blue:GenderMale)")
+hypothesis(skill_mf, "dif_blue < (dif_blue+dif_blue:GenderMale)")
 
 #No
 

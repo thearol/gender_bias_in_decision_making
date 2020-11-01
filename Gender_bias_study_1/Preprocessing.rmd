@@ -33,9 +33,12 @@ data$unique_ID_left <- paste(data$GroupNumber, data$SubjectID_left, sep = "_")
 data$dif_blue <- data$Prop_blue_image_2 - data$Prop_blue_image_1
 data$dif_blue_abs <- abs(data$Prop_blue_image_2 - data$Prop_blue_image_1)
 
-#Making a column, which expresses answer of participants, 0 = left picture, 1 = right picture
-data$right_answer <- ifelse(data$Response_right > 0, 1, 0)
-data$left_answer <- ifelse(data$Response_left > 0, 1, 0)
+#rename columns
+data$right_answer <- data$Response_right
+data$left_answer <- data$Response_left
+
+#delete Response_right and Reponse_left
+data <- select(data, -c(Response_left, Response_right))
 
 #Joining joint answer to one column
 data$joint_answer <- data$Joint_right+ data$Joint_left
@@ -101,15 +104,6 @@ data$leader_behaviour[data$leader_behaviour == "stick"] <- 0
 
 ```
 
-## CONFIDENCE SHOULD PROBABLY BE DELETED AS WE DO NOT INCLUDE IT IN STUDY 1
-##Adding variable: Confidence
-```{r}
-#rename confidence
-names(data)[names(data) == 'Response_left'] <- 'confidence_left'
-names(data)[names(data) == 'Response_right'] <- 'confidence_right'
-
-```
-
 
 ```{r adding trial variable to dataset in wide format}
 #Creating a trial variable
@@ -121,7 +115,7 @@ data_j = NULL
      data_j <- filter(data, data$GroupNumber == p)
      data_j <- cbind(data_j, as.data.frame(1:sum(complete.cases(data_j$GroupNumber))))
      print(sum(complete.cases(data_j$GroupNumber)))
-     colnames(data_j)[46] <- "Trial"
+     colnames(data_j)[44] <- "Trial"
      n = n + 1
      } else {
      data_j <- rbind(data_j,mutate(filter(data, data$GroupNumber == p), Trial = 1:sum(complete.cases(filter(data, data$GroupNumber == p)$GroupNumber))))
@@ -281,7 +275,7 @@ for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it i
 #Write a csv-file with the sensitivity scores
 ```{r write and read csv, eval = FALSE}
   
-write.csv(sensitivity_scores_roll, file = "sensitivity_scores_rolling.csv")
+#write.csv(sensitivity_scores_roll, file = "sensitivity_scores_rolling.csv")
 
 #Loading the sensitivity scores again?
 sensitivity_scores_roll <- read.csv("sensitivity_scores_rolling.csv")
@@ -324,7 +318,7 @@ colnames(sensitivity_scores_right) <-  c("unique_ID_right", "Trial_right",  "Sen
 data$Trial_right <- data$Trial 
 
 #Creating an identical column for trial to the left
-colnames(data)[46] <- "Trial_left"
+colnames(data)[44] <- "Trial_left"
 
 #Merging left data with sensitivity scores
 data <- merge(data, sensitivity_scores_left, by = c("unique_ID_left", "Trial_left"))
@@ -360,7 +354,7 @@ data$skill_dif_c[data$chosen_leader == "Agree"] <- NA
 ##Subsetting left data
 ```{r}
 #Subset to left data
-data_left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, skill_dif_c, confidence_left, leader_behaviour, Sensitivity_roll_left, Gender_left, left_answer, Trial_left)) #take all data for left participant
+data_left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, skill_dif_c, leader_behaviour, Sensitivity_roll_left, Gender_left, left_answer, Trial_left)) #take all data for left participant
 
 data_left$leader_behaviour[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
 data_left$Leader_gender[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
@@ -373,7 +367,7 @@ data_left$skill_dif_c[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs 
 ##Subsetting right data
 ```{r}
 #Subset right data
-data_right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, skill_dif_c, confidence_right, leader_behaviour, Sensitivity_roll_right, Gender_right, right_answer, Trial_right)) #Subsetting right data
+data_right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, skill_dif_c, leader_behaviour, Sensitivity_roll_right, Gender_right, right_answer, Trial_right)) #Subsetting right data
 
 data_right$leader_behaviour[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
 
