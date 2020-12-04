@@ -13,8 +13,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r setting working directory}
 #set working directory 
 #setwd("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1") #Kiri
-#setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
-setwd("~/gender_bias_in_decision_making/Gender_bias_study_1") #Thea
+setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
+#setwd("~/gender_bias_in_decision_making/Gender_bias_study_1") #Thea
 ```
 
 ```{r loading libraries}
@@ -123,16 +123,17 @@ waic(m_full, m_basic)
 prior_mf <- c(
   prior(normal(0, 0.2),class="Intercept"),
   prior(normal(0,0.1),class="b"),
-  prior(normal(0,0.2), class= "sd", coef = "dif_blue", group = "Subject"),
-  prior(normal(0,0.1), class= "sd", coef = "Intercept", group = "Subject")
+  prior(normal(0,0.1), class= "sd", coef = "dif_blue", group = "Subject"),
+  prior(normal(0,0.2), class= "sd", coef = "Intercept", group = "Subject")
 )
+
 
 #prior predictive check
 prior_check_mf <- brm(answer ~ dif_blue*Gender + (1+dif_blue|Subject), prior = prior_mf, data = data_long, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
 
 pp_check(prior_check_mf, nsamples = 100)
 
-# Model w skill difference
+# Model testing skill difference
 skill_mf <- brm(
   answer ~ dif_blue*Gender + (1+dif_blue|Subject), 
   data = data_long,
@@ -143,6 +144,7 @@ skill_mf <- brm(
   cores=2,
   chains=2
 ) 
+
 
 summary(skill_mf)
 plot(skill_mf)
@@ -155,9 +157,9 @@ marginal_effects(skill_mf)
 #Men perform better than women
 hypothesis(skill_mf, "dif_blue < (dif_blue+dif_blue:GenderMale)")
 
-hypothesis(skill_mf, "dif_blue < (dif_blue+dif_blue:GenderMale)")
-
 hypothesis(skill_mf, "dif_blue > (dif_blue+dif_blue:GenderMale)")
+
+hypothesis(skill_mf, "dif_blue = (dif_blue+dif_blue:GenderMale)")
 
 #No
 
