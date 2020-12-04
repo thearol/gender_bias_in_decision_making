@@ -109,6 +109,50 @@ marginal_effects(model_2)
 ```
 
 
+
+##Model 2.2 (including confidence difference)
+```{r model 2, including confidence difference}
+#Defining priors 
+prior_2.2 <- c( 
+  prior(normal(0,.2),class="b"),
+  prior(normal(0,.1),class="sd")
+)
+
+#prior predictive check
+model_2.2_prior <- brm(leader_behavior ~ 0 + conf_dif_c*Leader_gender:Follower_gender + (0 + skill_dif_roll_c:Follower_gender | SubjectID), 
+                       prior = prior_2, 
+                       data = data_db, 
+                       sample_prior = "only",
+                       iter = 4000, 
+                       family = "bernoulli", 
+                       chains = 2, 
+                       cores = 2)
+
+pp_check(model_2.2_prior, nsamples = 100)
+
+#Model 2; including skill difference and confidence difference
+model_2.2 <- brm(leader_behavior ~ 0 + conf_dif_c*Leader_gender:Follower_gender + (0 + skill_dif_roll_c:Follower_gender | SubjectID),
+  data = data_db,
+  prior = prior_2.2,
+  sample_prior=T,
+  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
+  seed = 123, # Adding a seed makes results reproducible.
+  chains=4,
+  cores=4
+  #control = list(adapt_delta = 0.9) 
+) 
+
+#Model summary and plots
+summary(model_2.2)
+plot(model_2.2)
+marginal_effects(model_2.2)
+
+```
+
+
+
+
+
 ##Model 3, investigating skill difference in relation to gender 
 ```{r model 3, investigating difference in skill between genders}
 
@@ -251,7 +295,11 @@ marginal_effects(model_5)
 ```{r WAIC testing to compare model 1 and model 2}
 waic <- waic(model_1, model_2)
 
+waic_2 <- waic(model_2, model_2.2)
+
 waic
+
+waic_2
 ```
 
 
@@ -314,6 +362,50 @@ hypothesis(model_db2, "(conf_dif_c:Leader_genderFemale:Follower_genderMale - con
 
 
 ```
+
+
+
+##Hypothesis testing with model 2.2
+
+
+###H2.1: There is an effect of leader in relation to gender: male leaders tend to surrender less than female leaders
+```{r H2.1 of model_2}
+
+#H2.1 of model_2
+hypothesis(model_2.2, "(Leader_genderMale:Follower_genderMale + Leader_genderMale:Follower_genderFemale)/2 < (Leader_genderFemale:Follower_genderMale + Leader_genderFemale:Follower_genderMale)/2")
+
+```
+
+
+###H2.2: There is an effect of follower in relation to gender: leaders tend to surrender more to men than to women
+```{H2.2 of model_2}
+
+#H2.2 of model_2
+hypothesis(model_2.2, "(Leader_genderMale:Follower_genderMale + Leader_genderFemale:Follower_genderMale)/2 > (Leader_genderMale:Follower_genderFemale + Leader_genderFemale:Follower_genderFemale)/2")
+
+```
+
+###H2.3: Males exploit the information given by the confidence of their partner more than females, when making a final decision
+```{r}
+#testing this hypothsis with model_db2
+hypothesis(model_2.2, "((conf_dif_c:Leader_genderFemale:Follower_genderFemale + conf_dif_c:Leader_genderFemale:Follower_genderMale)/2) > ( (conf_dif_c:Leader_genderMale:Follower_genderFemale + conf_dif_c:Leader_genderMale:Follower_genderMale)/2) ")
+
+```
+
+###H2.4:Females are more discriminative to their follower's gender in terms of the degree to which they exploit the information given by their partner's confidence than males
+```{r}
+
+hypothesis(model_2.2, "(conf_dif_c:Leader_genderFemale:Follower_genderMale - conf_dif_c:Leader_genderFemale:Follower_genderFemale) > ( conf_dif_c:Leader_genderMale:Follower_genderMale - conf_dif_c:Leader_genderMale:Follower_genderFemale) ")
+
+
+```
+
+
+
+
+
+
+
 
 ##Hypothesis testing with model 3
 
