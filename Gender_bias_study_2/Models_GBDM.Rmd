@@ -15,6 +15,7 @@ p_load(brms, tidyverse, tidybayes, ggplot2, LaplacesDemon, rethinking, tidyr, re
 ```{r}
 setwd("~/gender_bias_in_decision_making/Gender_bias_study_2") #Signe
 setwd("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_2") #Kiri
+setwd("~/gender_bias_in_decision_making/Gender_bias_study_2") #Thea
 ```
 
 
