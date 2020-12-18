@@ -9,64 +9,98 @@ output: word_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Preparing markdown
-```{r setting working directory}
-#set working directory 
-#setwd("C:/Users/KK/OneDrive - Aarhus Universitet/Dokumenter/MM, udgives/gender_bias_in_decision_making/Gender_bias_study_1") #Kiri
-setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
-#setwd("~/gender_bias_in_decision_making/Gender_bias_study_1") #Thea
-```
-
 ```{r loading libraries}
-#load libraries
-library(pacman)
-p_load(lme4, lmerTest, brms, tidyverse, stringi, tm, ggrepel, ggbeeswarm, boot)
+pacman::p_load(
+  lme4, 
+  lmerTest, 
+  brms, 
+  tidyverse, 
+  here,
+  stringi, 
+  tm, 
+  ggrepel, 
+  ggbeeswarm, 
+  boot)
+
 ```
 
 #Loading sensitivity scores (wide)
 ```{r load data}
 #read csv files with estimates
-data <- read.csv("data_disagree_long_sensitivity.csv")[,3:17]
-data_long <- read.csv("data_long_sensitivity.csv")[,2:16]
+data <- read.csv(
+  here("Gender_bias_study_1", "data",
+       "data_disagree_long_sensitivity.csv"))[,3:17] %>%
+  mutate(
+    Follower_gender = as.factor(Follower_gender),
+    Leader_gender = as.factor(Leader_gender)
+  )
+data_long <- read.csv(here("Gender_bias_study_1", "data",
+       "data_long_sensitivity.csv"))[,2:16]
 
-```
-
-#Data 
-```{r}
-#Changing the format of the leader and follower gender
-data$Follower_gender <- as.factor(data$Follower_gender)
-data$Leader_gender <- as.factor(data$Leader_gender)
 ```
 
 
 ##Model without skill difference (basic)
+
 ```{r model without skill difference}
+# Defining formula
+basic_m <- bf(
+  leader_behaviour ~ 0 + Leader_gender : Follower_gender + 
+    (0 + Follower_gender + Follower_gender:skill_dif_c | Subject))
+
 #Defining priors
 prior_basic <- c(
   prior(normal(0,.2),class="b"),
-  prior(normal(0,.1),class="sd")
+  prior(normal(0,1),class="sd")
 )
 
 #prior predictive check
-prior_check_basic <- brm(leader_behaviour ~ 0 + Leader_gender : Follower_gender + (0 + skill_dif_c:Follower_gender | Subject), prior = prior_basic, data = data, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
+prior_check_basic <- brm(
+  basic_m, 
+  prior = prior_basic, 
+  data = data, 
+  sample_prior = "only",
+  iter = 4000, 
+  family = "bernoulli", 
+  chains = 2, 
+  cores = 2)
 
 pp_check(prior_check_basic, nsamples = 100)
 
 #model without skill difference
 m_basic <- brm(
-  leader_behaviour ~ 0 + Leader_gender : Follower_gender + (0 + skill_dif_c:Follower_gender | Subject),
+  basic_m,
   data = data,
   prior = prior_basic,
-  sample_prior=T,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
+  sample_prior = T,
+  family = "bernoulli", 
   seed = 123, # Adding a seed makes results reproducible.
-  chains=2,
-  cores=2,
-  control = list(adapt_delta = 0.99) 
+  chains = 2,
+  cores = 2,
+  backend = "cmdstanr",
+  threads = threading(2),
+  control = list(
+    adapt_delta = 0.99) 
 ) 
 
-#Model summary and plots
+## Prior posterior update checks
+Posterior <- posterior_samples(m_basic)
 
+ggplot(Posterior) + theme_classic() +
+  geom_density(aes(prior_b), fill="darkred",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender0:Follower_gender0`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender1:Follower_gender0`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender0:Follower_gender1`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender1:Follower_gender1`), fill="darkblue",alpha=0.3)
+
+ggplot(Posterior) + theme_classic() +
+  geom_density(aes(prior_sd_Subject), fill="darkred",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender0`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender1`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender0:skill_dif_c`), fill="darkgreen",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender1:skill_dif_c`), fill="darkgreen",alpha=0.3) 
+
+# Model summary and plots
 summary(m_basic)
 plot(m_basic)
 marginal_effects(m_basic)
@@ -77,31 +111,75 @@ marginal_effects(m_basic)
 ##The full model with skill difference (full)
 ```{r, eval = FALSE}
 #Get priors
-get_prior(leader_behaviour ~ 0 + skill_dif_c * Leader_gender:Follower_gender + (0 + skill_dif_c:Follower_gender | Subject ), data = data, family = "bernoulli")
+full_f <- bf(
+  leader_behaviour ~ 0 + Leader_gender:Follower_gender +
+    Leader_gender:Follower_gender:skill_dif_c + 
+    (0 + Follower_gender + Follower_gender:skill_dif_c | Subject ))
+
+get_prior(full_f, data = data, family = "bernoulli")
 
 #Defining priors
 prior_full <- c(
   prior(normal(0,.2),class="b"),
-  prior(normal(0,.1),class="sd")
+  prior(normal(0,1),class="sd")
 )
 
 #prior predictive check
-prior_check_full <- brm(leader_behaviour ~ 0 + skill_dif_c * Leader_gender : Follower_gender + (0 + skill_dif_c:Follower_gender | Subject ), prior = prior_full, data = data, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
+prior_check_full <- brm(
+  full_f,  
+  data = data, 
+  prior = prior_full,
+  sample_prior = "only",
+  iter = 4000, 
+  family = "bernoulli", 
+  chains = 2, 
+  cores = 2
+  backend = "cmdstanr",
+  threads = threading(2),
+  control = list(
+    adapt_delta = 0.99
+  ))
 
 pp_check(prior_check_full, nsamples = 100)
 
 # Model w skill difference
 m_full <- brm(
-  leader_behaviour ~ 0 + skill_dif_c * Leader_gender : Follower_gender + (0 + skill_dif_c:Follower_gender | Subject),
-  data = data,
+  full_f,  
+  data = data, 
   prior = prior_full,
-  sample_prior=T,
-  family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-  seed = 123, # Adding a seed makes results reproducible.
-  cores=2,
-  chains=2,
-  control = list(adapt_delta = 0.99) #only for answer model, due to Eff.Sample
-) 
+  sample_prior = TRUE,
+  iter = 4000, 
+  family = "bernoulli", 
+  chains = 1, 
+  cores = 2,
+  backend = "cmdstanr",
+  threads = threading(4),
+  control = list(
+    adapt_delta = 0.99
+  ))
+## Prior posterior update checks
+Posterior <- posterior_samples(m_full)
+
+ggplot(Posterior) + theme_classic() +
+  geom_density(aes(prior_b), fill="darkred",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender0:Follower_gender0`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender1:Follower_gender0`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender0:Follower_gender1`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender1:Follower_gender1`), fill="darkblue",alpha=0.3)
+
+ggplot(Posterior) + theme_classic() +
+  geom_density(aes(prior_b), fill="darkred",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender0:Follower_gender0:skill_dif_c`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender1:Follower_gender0:skill_dif_c`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender0:Follower_gender1:skill_dif_c`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender1:Follower_gender1:skill_dif_c`), fill="darkblue",alpha=0.3)
+
+ggplot(Posterior) + theme_classic() +
+  geom_density(aes(prior_sd_Subject), fill="darkred",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender0`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender1`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender0:skill_dif_c`), fill="darkgreen",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender1:skill_dif_c`), fill="darkgreen",alpha=0.3) 
 
 summary(m_full)
 plot(m_full)
@@ -111,7 +189,11 @@ marginal_effects(m_full)
 
 #Model comparison
 ```{r, eval = FALSE}
-waic(m_full, m_basic)
+
+m_basic <- add_criterion(m_basic, criterion = "loo")
+m_full <- add_criterion(m_full, criterion = "loo")
+loo_compare(m_full, m_basic)
+loo_model_weight(m_full, m_basic)
 
 ```
 

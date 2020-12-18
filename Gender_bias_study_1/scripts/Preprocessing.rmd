@@ -405,10 +405,10 @@ data_long$Subject <- gsub(".*_", "", data_long$Subject)
 #Write CSV with sensitivity scores and clean data
 ```{r}
 write.csv(data_long, file = 
-            here("Gender_bias_Study_1","data", "data_long_sensitivity.csv")
+            here("Gender_bias_study_1","data", "data_long_sensitivity.csv")
 
 data_long <- read.csv(
-  here("Gender_bias_Study_1","data","data_long_sensitivity.csv")
+  here("Gender_bias_study_1","data","data_long_sensitivity.csv")
 ```
 
 
@@ -433,6 +433,6 @@ data_disagree_long$Subject <- gsub(".*_", "", data_disagree_long$Subject)
 #Write CSV with sensitivity scores and clean data, only disagree
 ```{r}
 write.csv(data_disagree_long, file = 
-            here("Gender_bias_Study_1","data","data_disagree_long_sensitivity.csv")
+            here("Gender_bias_study_1","data","data_disagree_long_sensitivity.csv")
 ```
 
