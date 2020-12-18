@@ -181,13 +181,15 @@ t = 10
 k = 0
 
 ## Defining the model
-sensitivity_f <- bf(answer ~ 1 + dif_blue + (1 + dif_blue | unique))
+sensitivity_f <- bf(answer ~ 1 + mo(dif_blue) + (1 + mo(dif_blue) | unique))
+
+get_prior(sensitivity_f,ldata,family=bernoulli)
 ### Defining priors
 prior_sensitivity =  c(
-      prior(normal(0,0.2), class = "Intercept"),
-      prior(normal(0,0.1), class = "b", coef = "dif_blue"),
-      prior(normal(0,0.1), class = "sd", coef = "dif_blue", group = "unique"),
-      prior(normal(0,0.2), class = "sd", coef = "Intercept", group = "unique")
+      prior(normal(0,2), class = "Intercept"),
+      prior(normal(0,0.3), class = "b", coef = "modif_blue"),
+      prior(normal(0,1), class = "sd", coef = "modif_blue", group = "unique"),
+      prior(normal(0,1), class = "sd", coef = "Intercept", group = "unique")
     )
 
 ###Making a loop for individual slope
@@ -212,7 +214,9 @@ for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it i
       seed = 123,# Adding a seed makes results reproducible.
       cores = 2,
       chains = 2,
-      #control = list(adapt_delta = 0.9)
+      backend = "cmdstanr",
+      threads = threading(2),
+      control = list(adapt_delta = 0.9)
     )
     
     ###SAVING ESTIMATES
@@ -225,7 +229,7 @@ for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it i
     colnames(sensitivity_scores_roll) <- c("unique", i)
   }
   
-  if(i > 10){
+  if (i > 10) {
     k = k + 1
     n = 1
     s = s + 1
@@ -240,16 +244,7 @@ for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it i
       } }
     
     #Making the model - using answer
-    m_sensitivity <- brm(
-      sensitivity_f,
-      data = data_i,
-      prior = prior_sensitivity,
-      family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-      seed = 123,# Adding a seed makes results reproducible.
-      cores = 2,
-      chains = 2,
-      #control = list(adapt_delta = 0.9)
-    )
+    m_sensitivity <- update(m_sensitivity, newdata = data_i)
     
     ###SAVING ESTIMATES
     
@@ -263,6 +258,7 @@ for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it i
     
   } 
 }
+
 ```
 
 #Write a csv-file with the sensitivity scores
@@ -405,10 +401,10 @@ data_long$Subject <- gsub(".*_", "", data_long$Subject)
 #Write CSV with sensitivity scores and clean data
 ```{r}
 write.csv(data_long, file = 
-            here("Gender_bias_study_1","data", "data_long_sensitivity.csv")
+            here("Gender_bias_study_1","data", "data_long_sensitivity.csv"))
 
 data_long <- read.csv(
-  here("Gender_bias_study_1","data","data_long_sensitivity.csv")
+  here("Gender_bias_study_1","data","data_long_sensitivity.csv"))
 ```
 
 
@@ -433,6 +429,6 @@ data_disagree_long$Subject <- gsub(".*_", "", data_disagree_long$Subject)
 #Write CSV with sensitivity scores and clean data, only disagree
 ```{r}
 write.csv(data_disagree_long, file = 
-            here("Gender_bias_study_1","data","data_disagree_long_sensitivity.csv")
+            here("Gender_bias_study_1","data","data_disagree_long_sensitivity.csv"))
 ```
 

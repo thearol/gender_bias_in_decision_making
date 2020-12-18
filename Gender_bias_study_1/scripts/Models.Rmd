@@ -50,7 +50,7 @@ basic_m <- bf(
 
 #Defining priors
 prior_basic <- c(
-  prior(normal(0,.2),class="b"),
+  prior(normal(0,.5),class="b"),
   prior(normal(0,1),class="sd")
 )
 
@@ -77,6 +77,7 @@ m_basic <- brm(
   seed = 123, # Adding a seed makes results reproducible.
   chains = 2,
   cores = 2,
+  iter = 4000,
   backend = "cmdstanr",
   threads = threading(2),
   control = list(
@@ -120,7 +121,11 @@ get_prior(full_f, data = data, family = "bernoulli")
 
 #Defining priors
 prior_full <- c(
-  prior(normal(0,.2),class="b"),
+  prior(normal(0,1),class="b"),
+  prior(normal(0,.5),class="b", coef="Leader_gender0:Follower_gender0"),
+  prior(normal(0,.5),class="b", coef="Leader_gender0:Follower_gender1"),
+  prior(normal(0,.5),class="b", coef="Leader_gender1:Follower_gender0"),
+  prior(normal(0,.5),class="b", coef="Leader_gender1:Follower_gender1"),
   prior(normal(0,1),class="sd")
 )
 
@@ -150,26 +155,27 @@ m_full <- brm(
   sample_prior = TRUE,
   iter = 4000, 
   family = "bernoulli", 
-  chains = 1, 
+  chains = 2, 
   cores = 2,
   backend = "cmdstanr",
-  threads = threading(4),
+  threads = threading(2),
   control = list(
     adapt_delta = 0.99
   ))
+
 ## Prior posterior update checks
 Posterior <- posterior_samples(m_full)
 
 ggplot(Posterior) + theme_classic() +
-  geom_density(aes(prior_b), fill="darkred",alpha=0.3) +
+  geom_density(aes(`prior_b_Leader_gender0:Follower_gender0`), fill="darkred",alpha=0.3) +
   geom_density(aes(`b_Leader_gender0:Follower_gender0`), fill="darkblue",alpha=0.3) +
   geom_density(aes(`b_Leader_gender1:Follower_gender0`), fill="darkblue",alpha=0.3) +
   geom_density(aes(`b_Leader_gender0:Follower_gender1`), fill="darkblue",alpha=0.3) +
   geom_density(aes(`b_Leader_gender1:Follower_gender1`), fill="darkblue",alpha=0.3)
 
 ggplot(Posterior) + theme_classic() +
-  geom_density(aes(prior_b), fill="darkred",alpha=0.3) +
-  geom_density(aes(`b_Leader_gender0:Follower_gender0:skill_dif_c`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`prior_b_Leader_gender0:Follower_gender0:skill_dif_c`), fill="darkred",alpha=0.3) +
+  geom_density(aes(`b_Leader_gender0:Follower_gender0:skill_dif_c`), fill="darkgreen",alpha=0.3) +
   geom_density(aes(`b_Leader_gender1:Follower_gender0:skill_dif_c`), fill="darkblue",alpha=0.3) +
   geom_density(aes(`b_Leader_gender0:Follower_gender1:skill_dif_c`), fill="darkblue",alpha=0.3) +
   geom_density(aes(`b_Leader_gender1:Follower_gender1:skill_dif_c`), fill="darkblue",alpha=0.3)
@@ -183,17 +189,181 @@ ggplot(Posterior) + theme_classic() +
 
 summary(m_full)
 plot(m_full)
-marginal_effects(m_full)
+conditional_effects(m_full)
 ```
 
 
 #Model comparison
+
 ```{r, eval = FALSE}
 
 m_basic <- add_criterion(m_basic, criterion = "loo")
 m_full <- add_criterion(m_full, criterion = "loo")
 loo_compare(m_full, m_basic)
-loo_model_weight(m_full, m_basic)
+loo_model_weights(m_full, m_basic)
+
+```
+
+#Hypothesis testing: H1a and H1b
+
+# H1a: There is a leader effect: male leaders tend to surrender less than female leaders
+```{r H1}
+
+#H1a: In general male leaders tend to surrender less than female leaders
+hypothesis(m_full, #m_basic
+           "(Leader_gender0:Follower_gender0 + Leader_gender0:Follower_gender1)/2 < 
+           (Leader_gender1:Follower_gender0 + Leader_gender1:Follower_gender1)/2")
+hypothesis(m_full, #m_basic
+           "(inv_logit(Leader_gender0:Follower_gender0) +
+           inv_logit(Leader_gender0:Follower_gender1))/2*100 < 
+           (inv_logit(Leader_gender1:Follower_gender0) +
+           inv_logit(Leader_gender1:Follower_gender1))/2*100")
+
+Posterior <- Posterior %>%
+  mutate(
+    Man2Man = inv_logit_scaled(`b_Leader_gender0:Follower_gender0`), 
+    Man2Woman = inv_logit_scaled(`b_Leader_gender0:Follower_gender1`),
+    Woman2Man = inv_logit_scaled(`b_Leader_gender1:Follower_gender0`),
+    Woman2Woman = inv_logit_scaled(`b_Leader_gender1:Follower_gender1`),
+    ManLeader = (Man2Man + Man2Woman)/2,
+    WomanLeader = (Woman2Man + Woman2Woman)/2,
+    ManFollower = (Man2Man + Woman2Man)/2,
+    WomanFollower = (Man2Woman + Woman2Woman)/2,
+    H1a = ManLeader - WomanLeader,
+    H1b = ManFollower - WomanFollower,
+    Man2ManBetter = inv_logit_scaled(`b_Leader_gender0:Follower_gender0` + `b_Leader_gender0:Follower_gender0:skill_dif_c`), 
+    Man2ManWorse = inv_logit_scaled(`b_Leader_gender0:Follower_gender0` - `b_Leader_gender0:Follower_gender0:skill_dif_c`),  
+    Man2WomanBetter = inv_logit_scaled(`b_Leader_gender0:Follower_gender1` + `b_Leader_gender0:Follower_gender0:skill_dif_c`), 
+    Man2WomanWorse = inv_logit_scaled(`b_Leader_gender0:Follower_gender1` - `b_Leader_gender0:Follower_gender0:skill_dif_c`),  
+    Woman2ManBetter = inv_logit_scaled(`b_Leader_gender1:Follower_gender0` + `b_Leader_gender0:Follower_gender0:skill_dif_c`), 
+    Woman2ManWorse = inv_logit_scaled(`b_Leader_gender1:Follower_gender0` - `b_Leader_gender0:Follower_gender0:skill_dif_c`),  
+    Woman2WomanBetter = inv_logit_scaled(`b_Leader_gender1:Follower_gender1` + `b_Leader_gender0:Follower_gender0:skill_dif_c`), 
+    Woman2WomanWorse = inv_logit_scaled(`b_Leader_gender1:Follower_gender1` - `b_Leader_gender0:Follower_gender0:skill_dif_c`),
+    ManLeaderBetter = (Man2ManBetter + Man2WomanBetter)/2,
+    WomanLeaderBetter = (Woman2ManBetter + Woman2WomanBetter)/2,
+    ManFollowerBetter = (Man2ManBetter + Woman2ManBetter)/2,
+    WomanFollowerBetter = (Man2WomanBetter + Woman2WomanBetter)/2,
+    H1aBetter = ManLeaderBetter - WomanLeaderBetter,
+    H1bBetter = ManFollowerBetter - WomanFollowerBetter,
+    ManLeaderWorse = (Man2ManWorse + Man2WomanWorse)/2,
+    WomanLeaderWorse = (Woman2ManWorse + Woman2WomanWorse)/2,
+    ManFollowerWorse = (Man2ManWorse + Woman2ManWorse)/2,
+    WomanFollowerWorse = (Man2WomanWorse + Woman2WomanWorse)/2,
+    H1aWorse = ManLeaderWorse - WomanLeaderWorse,
+    H1bWorse = ManFollowerWorse - WomanFollowerWorse
+  )
+mean(Posterior$ManLeader)
+mean(Posterior$WomanLeader)
+mean(Posterior$H1a)
+quantile(Posterior$H1a, c(0.025, 0.975))
+sum(Posterior$H1a<0)/sum(!(Posterior$H1a<0))
+
+mean(Posterior$H1aBetter)
+sum(Posterior$H1aBetter<0)/sum(!(Posterior$H1aBetter<0))
+mean(Posterior$H1aWorse)
+sum(Posterior$H1aWorse<0)/sum(!(Posterior$H1aWorse<0))
+
+
+```
+
+## H1a: Plotting
+```{r preparing predictions}
+#create newdata to make predictions from 
+nd <- 
+  expand.grid(tibble(
+         Follower_gender = factor(0:1) %>% rep(., times = 10),
+         Leader_gender = factor(0:1) %>% rep(., times = 10),
+         skill_dif_c = 0,
+         Subject = NA))
+
+#Predicting new values from the basic model
+pred <-
+  predict(m_full, newdata = nd) %>%  # we can use the same nd data from last time
+  as_tibble() %>%
+  bind_cols(nd)
+
+#Changing the format of the follower and leader gender
+pred$Leader_gender <- as.character(pred$Leader_gender)
+pred$Follower_gender <- as.character(pred$Follower_gender)
+
+#Changing the genders from dummy coding
+pred$Follower_gender[pred$Follower_gender == 0] <- "Male"
+pred$Follower_gender[pred$Follower_gender == 1] <- "Female"
+pred$Leader_gender[pred$Leader_gender == 0] <- "Male"
+pred$Leader_gender[pred$Leader_gender == 1] <- "Female"
+```
+
+```{r H1 plot}
+#Creating a rounding function for plots
+rounding <- function(x) sprintf("%.3f", x)
+
+#create the plot
+H1a <- ggplot(data, aes(x = Leader_gender, y = leader_behaviour, fill = Leader_gender)) +
+  theme_classic() +
+  labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "Hypothesis 1a") +
+  geom_boxplot(aes(x = Leader_gender, Estimate) , data = pred, width = 0.5) + 
+  theme(legend.position = "none", panel.grid.minor = element_blank()) + 
+  geom_violin(aes(x = Leader_gender, y = Estimate,fill = Leader_gender), data = pred, trim = FALSE, width =1, alpha = 0.2) + 
+  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5)), labels = rounding) + 
+  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
+  scale_fill_manual(values=c("palegreen3", "gold2")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+H1a
+```
+
+
+#H1b:There is a follower effect: leaders tend to surrender more to men than to women
+```{r H1b: there is a follower effect: leaders tend to surrender more to men than to women }
+# H2: There is a follower effect: leaders tend to surrender more to men than to women
+hypothesis(m_full, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
+mean(Posterior$ManFollower)
+mean(Posterior$WomanFollower)
+mean(Posterior$H1b)
+quantile(Posterior$H1b, c(0.025, 0.975))
+sum(Posterior$H1b>0)/sum(!(Posterior$H1b>0))
+mean(Posterior$H1bBetter)
+mean(Posterior$H1bWorse)
+
+#testing the effect of inv.logit before hyp
+hypothesis(m_full, "(inv.logit(Leader_gender0:Follower_gender0) + inv.logit(Leader_gender1:Follower_gender0))/2*100 > (inv.logit(Leader_gender0:Follower_gender1) + inv.logit(Leader_gender1:Follower_gender1))/2*100")
+
+hypothesis(m_full, "(inv.logit(Leader_gender0:Follower_gender0) - inv.logit(Leader_gender0:Follower_gender1)) > (inv.logit(Leader_gender1:Follower_gender0) - inv.logit(Leader_gender1:Follower_gender1))")
+```
+
+##H1b: Plotting
+```{r}
+#create the plot
+H1b <- ggplot(data, aes(x = Follower_gender, y = leader_behaviour, fill = Follower_gender)) +
+  theme_classic() +
+  labs(x = "Follower gender", y = "Predicted propensity to surrender", title = "Hypothesis 1b") +
+  geom_boxplot(aes(x = Follower_gender, Estimate) , data = pred, width = 0.5) + 
+  theme(legend.position = "none", panel.grid.minor = element_blank()) + 
+  geom_violin(aes(x = Follower_gender, y = Estimate), data = pred, trim = FALSE, width =1, alpha = 0.2) + 
+  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5)), labels = rounding) + 
+  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
+  scale_fill_manual(values=c("palegreen3", "gold2"))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+H1b
+```
+
+
+##both hypotheses visualized
+```{r}
+main_plot <- ggplot(pred, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
+  theme_classic() +
+  geom_violin(aes(x = Leader_gender, y = Estimate), data = pred, width = 0.7, alpha = 0.8) + 
+  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
+  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5)), labels = rounding) + 
+  theme(panel.grid.minor = element_blank()) + 
+  labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "Gender bias") + 
+  stat_summary(fun.data=mean_sdl, geom="pointrange", color="black", position = position_dodge(width = 0.7), alpha = 0.8) +
+  labs(fill = "Follower gender") + 
+  scale_fill_manual(values=c("palegreen3", "gold2"))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+main_plot
 
 ```
 
@@ -248,129 +418,7 @@ hypothesis(skill_mf, "dif_blue = (dif_blue+dif_blue:GenderMale)")
 ```
 
 
-#Hypothesis testing: H1 and H2
 
-# H1: There is a leader effect: male leaders tend to surrender less than female leaders
-```{r H1}
-#H1: In general male leaders tend to surrender less than female leaders
-hypothesis(m_basic, "(Leader_gender0:Follower_gender0 + Leader_gender0:Follower_gender1)/2 < (Leader_gender1:Follower_gender0 + Leader_gender1:Follower_gender1)/2")
-
-
-#full model
-#hypothesis(m_full, "(Leader_gender0:Follower_gender0 + Leader_gender0:Follower_gender1)/2 < (Leader_gender1:Follower_gender0 + Leader_gender1:Follower_gender1)/2")
-
-```
-
-##H1: Plotting
-```{r preparing predictions}
-#create newdata to make predictions from 
-nd <- 
-  expand.grid(tibble(
-         Follower_gender=factor(0:1) %>% rep(., times = 10),
-         Leader_gender = factor(0:1) %>% rep(., times = 10),
-         Subject = NA))
-
-#Predicting new values from the basic model
-pred <-
-  predict(m_basic, newdata = nd, re_formula = ~ (0 + Follower_gender | Subject)) %>%  # we can use the same nd data from last time
-  as_tibble() %>%
-  bind_cols(nd)
-
-#Changing the format of the follower and leader gender
-pred$Leader_gender <- as.character(pred$Leader_gender)
-pred$Follower_gender <- as.character(pred$Follower_gender)
-
-#Changing the genders from dummy coding
-pred$Follower_gender[pred$Follower_gender == 0] <- "Male"
-pred$Follower_gender[pred$Follower_gender == 1] <- "Female"
-pred$Leader_gender[pred$Leader_gender == 0] <- "Male"
-pred$Leader_gender[pred$Leader_gender == 1] <- "Female"
-```
-
-```{r H1 plot}
-#Creating a rounding function for plots
-rounding <- function(x) sprintf("%.3f", x)
-
-#create the plot
-H1 <- ggplot(data, aes(x = Leader_gender, y = leader_behaviour, fill = Leader_gender)) +
-  labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "Hypothesis 1") +
-  geom_boxplot(aes(x = Leader_gender, Estimate) , data = pred, width = 0.5) + 
-  theme(legend.position = "none", panel.grid.minor = element_blank()) + 
-  geom_violin(aes(x = Leader_gender, y = Estimate), data = pred, trim = FALSE, width =1, alpha = 0.1) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5)), labels = rounding) + 
-  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_fill_manual(values=c("palegreen3", "gold2")) +
-  theme(plot.title = element_text(hjust = 0.5))
-
-H1
-```
-
-
-#H2:There is a follower effect: leaders tend to surrender more to men than to women
-```{r H2: there is a follower effect: leaders tend to surrender more to men than to women }
-# H2: There is a follower effect: leaders tend to surrender more to men than to women
-hypothesis(m_basic, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
-
-#testing the effect of inv.logit before hyp
-hypothesis(m_basic, "(inv.logit(Leader_gender0:Follower_gender0) + inv.logit(Leader_gender1:Follower_gender0))/2 > (inv.logit(Leader_gender0:Follower_gender1) + inv.logit(Leader_gender1:Follower_gender1))/2")
-
-#hypothesis(m_full, "(Leader_gender0:Follower_gender0 + Leader_gender1:Follower_gender0)/2 > (Leader_gender0:Follower_gender1 + Leader_gender1:Follower_gender1)/2")
-```
-
-##H2: Plotting
-```{r}
-#create the plot
-H2 <- ggplot(data, aes(x = Follower_gender, y = leader_behaviour, fill = Follower_gender)) +
-  labs(x = "Follower gender", y = "Predicted propensity to surrender", title = "Hypothesis 2") +
-  geom_boxplot(aes(x = Follower_gender, Estimate) , data = pred, width = 0.5) + 
-  theme(legend.position = "none", panel.grid.minor = element_blank()) + 
-  geom_violin(aes(x = Follower_gender, y = Estimate), data = pred, trim = FALSE, width =1, alpha = 0.1) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5)), labels = rounding) + 
-  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_fill_manual(values=c("palegreen3", "gold2"))+
-  theme(plot.title = element_text(hjust = 0.5))
-
-H2
-```
-
-
-##both hypotheses visualized
-```{r}
-main_plot <- ggplot(pred, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
-  geom_violin(aes(x = Leader_gender, y = Estimate), data = pred, width = 0.7, alpha = 0.8) + 
-  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_y_continuous(breaks = sort(c(seq(min(pred$Estimate), max(pred$Estimate), length.out=5), 0.5)), labels = rounding) + 
-  theme(panel.grid.minor = element_blank()) + 
-  labs(x = "Leader gender", y = "Predicted propensity to surrender", title = "Both hypotheses") + 
-  stat_summary(fun.data=mean_sdl, geom="pointrange", color="black", position = position_dodge(width = 0.7), alpha = 0.8) +
-  labs(fill = "Follower gender") + 
-  scale_fill_manual(values=c("palegreen3", "gold2"))+
-  theme(plot.title = element_text(hjust = 0.5))
-
-main_plot
-
-```
-
-```{r}
-#Test
-
-thea_plot <- ggplot(pred, aes(x = Leader_gender, y = Estimate, fill = Follower_gender)) + 
-  geom_violin(aes(x = Leader_gender, y = Estimate), data = pred, width = 0.7, alpha = 0.8) + 
-  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
-  scale_y_continuous(breaks = sort(c(seq(0.475, 0.575, length.out=5), 0.5)), labels = rounding) + 
-  theme(panel.grid.minor = element_blank()) + 
-  labs(x = "Leader gender", y = "Propensity to surrender", title = "TITLE?") + 
-  stat_summary(fun.data=mean_sdl, geom="pointrange", color="black", position = position_dodge(width = 0.7), alpha = 0.8) +
-  labs(fill = "Follower gender") + 
-  scale_fill_manual(values=c("palegreen3", "gold2"))+
-  theme(plot.title = element_text(hjust = 0.5)) + 
-  theme(legend.title = element_text(color = "black", size = 16, face="bold"), legend.text = element_text(color = "black", size = 16)) +
-  theme(axis.text=element_text(size=14),axis.title=element_text(size=16,face="bold"))
- 
-
-thea_plot
-
-```
 
 
 
