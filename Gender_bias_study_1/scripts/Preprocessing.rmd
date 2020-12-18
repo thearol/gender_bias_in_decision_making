@@ -11,73 +11,75 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #Loading packages
 ```{r loading packages, include = FALSE}
-library(brms);library(tidyverse); library(tidybayes); library(ggplot2); library(LaplacesDemon); library(tidyr); library(reshape2);library(pacman); library(tibble);library(tidyr);
+pacman::p_load(
+  brms,
+  tidyverse,
+  here,
+  tidybayes,
+  LaplacesDemon,
+  tidyr,
+  reshape2)
 
 ```
 
-#Loading data 
+#Loading and processing data 
 ```{r}
-setwd("~/gender_bias_in_decision_making/Gender_bias_study_1/") #Signe
 
-data <- read.csv("anonymised_data.csv")
-```
-
-#Preparing data
-##Adding difficulty variable og dummy coding
-```{r making variables for sensitivty, include = FALSE}
-#Making unique subjects
-data$unique_ID_right <- paste(data$GroupNumber, data$SubjectID_right, sep = "_")
-data$unique_ID_left <- paste(data$GroupNumber, data$SubjectID_left, sep = "_")
-
-#Making column, which expresses difficulty
-data$dif_blue <- data$Prop_blue_image_2 - data$Prop_blue_image_1
-data$dif_blue_abs <- abs(data$Prop_blue_image_2 - data$Prop_blue_image_1)
-
-#rename columns
-data$right_answer <- data$Response_right
-data$left_answer <- data$Response_left
-
-#delete Response_right and Reponse_left
-data <- select(data, -c(Response_left, Response_right))
-
-#Joining joint answer to one column
-data$joint_answer <- data$Joint_right+ data$Joint_left
-
-#Recoding joint answer to be 0 and 1's, 0 right, 1 left, NA = no leader
-data$joint_answer[data$joint_answer == 0] <- NA #Replacing 0's with NA
-data$joint_answer[data$joint_answer == -1] <- 0
+data <- read.csv(
+  here("Gender_bias_study_1", "data", "anonymised_data.csv")) %>%
+  mutate(
+    # Making unique subjects
+    unique_ID_right = paste(GroupNumber, SubjectID_right, sep = "_"),
+    unique_ID_left = paste(GroupNumber, SubjectID_left, sep = "_"),
+    # Calculating evidence
+    dif_blue  = Prop_blue_image_2 - Prop_blue_image_1,
+    # Calculating difficulty
+    dif_blue_abs = abs(Prop_blue_image_2 - Prop_blue_image_1),
+    # Calculating joint answers
+    joint_answer = Joint_right + Joint_left,
+    # Fix some stuff
+    joint_answer = ifelse(joint_answer == 0, NA, ifelse(joint_answer == -1, 0, joint_answer))
+  ) %>%  rename(
+    right_answer = Response_right,
+    left_answer = Response_left
+  )
 ```
 
 
 ##Adding variables: Agree, chosen leader and gender
 ```{r coding for leader/follower}
 
-#create a column that sorts out all the agreed trials
-data$chosen_leader <- ifelse(data$right_answer == data$left_answer, "Agree", 0) 
-
-#Create variable, which determines the chosen leader
-data$chosen_leader[data$chosen_leader == 0 & data$Joint_right == 0] <- "Left_lead"
-data$chosen_leader[data$chosen_leader == 0 & data$Joint_left == 0] <- "Right_lead"
-
-#create column that specifies the gender of the leader
-data$Leader_gender <- 0
-data$Leader_gender <- ifelse(data$chosen_leader == "Left_lead", as.character(data$Gender_left), as.character(data$Gender_right))
-data$Leader_gender[data$chosen_leader == "Agree"] <- NA
-
-#create column that specifies the gender of the follower
-data$Follower_gender <- 0
-data$Follower_gender <- ifelse(data$chosen_leader == "Left_lead", as.character(data$Gender_right), as.character(data$Gender_left))
-data$Follower_gender[data$chosen_leader == "Agree"] <- NA
-
-#Dummycoding leader gender and follower gender, male = 0, female = 1
-data$Leader_gender[data$Leader_gender == "Male"] <- 0
-data$Leader_gender[data$Leader_gender == "Female"] <- 1
-data$Follower_gender[data$Follower_gender == "Male"] <- 0
-data$Follower_gender[data$Follower_gender == "Female"] <- 1
-
+data <- data %>%
+  mutate(
+    # variable that sorts out all the agreed trials
+    chosen_leader = ifelse(right_answer == left_answer, "Agree", 0),
+    # variable, which determines the chosen leader
+    chosen_leader = ifelse(chosen_leader == 0 & Joint_right == 0, 
+                           "Left_lead",
+                           ifelse(chosen_leader == 0 & Joint_left == 0,
+                                  "Right_lead",
+                                  chosen_leader)),
+    #create column that specifies the gender of the leader
+    Leader_gender = ifelse(chosen_leader == "Left_lead",
+                           as.character(Gender_left),
+                           ifelse(chosen_leader == "Right_lead",
+                                  as.character(Gender_right),
+                                  NA)),
+    Leader_gender = ifelse(Leader_gender == "Male", 0,
+                           ifelse(Leader_gender =="Female", 1, NA)),
+    #create column that specifies the gender of the follower
+    Follower_gender = ifelse(chosen_leader == "Left_lead",
+                           as.character(Gender_right),
+                           ifelse(chosen_leader == "Right_lead",
+                                  as.character(Gender_left),
+                                  NA)),
+    Follower_gender = ifelse(Follower_gender == "Male", 0,
+                           ifelse(Follower_gender =="Female", 1, NA)),
+  )
 ```
 
 ##Adding variable: Leader behaviour
+
 ```{r Did the leader stick?}
 #Creating column of 0's
 data$leader_behaviour <- 0 
@@ -137,6 +139,7 @@ We need one column containing answer from both left and right in order to allow 
 
 ##Long format
 ```{r making long format, include = FALSE}
+
 #Subsetting the left data
 left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, left_answer, joint_answer, Correct_left, Correct_joint, dif_blue_abs, Trial))
 
@@ -149,7 +152,7 @@ left$Side <- "Left"
 #Subsetting right data
 right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, right_answer, joint_answer, Correct_left, Correct_joint, dif_blue_abs, Trial))
 
-#Chainging names
+#Changing names
 names(right) <- c("GroupNumber", "unique", "dif_blue", "answer", "joint_answer", "Correct", "Correct_joint", "dif_blue_abs", "Trial")
 
 #Adding a side variable
@@ -177,6 +180,16 @@ s = 1
 t = 10
 k = 0
 
+## Defining the model
+sensitivity_f <- bf(answer ~ 1 + dif_blue + (1 + dif_blue | unique))
+### Defining priors
+prior_sensitivity =  c(
+      prior(normal(0,0.2), class = "Intercept"),
+      prior(normal(0,0.1), class = "b", coef = "dif_blue"),
+      prior(normal(0,0.1), class = "sd", coef = "dif_blue", group = "unique"),
+      prior(normal(0,0.2), class = "sd", coef = "Intercept", group = "unique")
+    )
+
 ###Making a loop for individual slope
 for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it is the biggest amount of trials 
   print(i)
@@ -185,31 +198,22 @@ for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it i
       if (n == 1) {
         data_i <- filter(ldata, ldata$unique == p)[s:t, ]
         n = n + 1
-        } else {
-          data_i <- rbind(data_i, filter(ldata, ldata$unique == p)[s:t, ])
-          n = n + 1
-          } }
+      } else {
+        data_i <- rbind(data_i, filter(ldata, ldata$unique == p)[s:t, ])
+        n = n + 1
+      } }
     
-      #Defining priors
-      prior_sensitivity =  c(
-      prior(normal(0,0.1), class = "b", coef = "dif_blue"),
-      prior(normal(0,0.2), class = "Intercept"),
-      prior(normal(0,0.1), class = "sd", coef = "dif_blue", group = "unique"),
-      prior(normal(0,0.2), class = "sd", coef = "Intercept", group = "unique")
-    )
-    
-      #Making the model - using answer
-      m_sensitivity <- brm(
-      answer ~ dif_blue + (1+dif_blue|unique),
+    #Making the model - using answer
+    m_sensitivity <- brm(
+      sensitivity_f,
       data = data_i,
       prior = prior_sensitivity,
       family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
       seed = 123,# Adding a seed makes results reproducible.
-      cores=2,
-      chains=2,
+      cores = 2,
+      chains = 2,
       #control = list(adapt_delta = 0.9)
-      )
-    
+    )
     
     ###SAVING ESTIMATES
     #Saving random effect for individual slope
@@ -220,41 +224,32 @@ for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it i
     
     colnames(sensitivity_scores_roll) <- c("unique", i)
   }
+  
+  if(i > 10){
+    k = k + 1
+    n = 1
+    s = s + 1
+    t = t + 1
+    for (r in unique(ldata$unique)){
+      if (n == 1) {
+        data_i <- filter(ldata, ldata$unique == r)[s:t, ]
+        n = n + 1
+      } else {
+        data_i <- rbind(data_i, filter(ldata, ldata$unique == r)[s:t, ])
+        n = n + 1
+      } }
     
-    if(i > 10){
-      k = k + 1
-      n = 1
-      s = s + 1
-      t = t + 1
-      for (r in unique(ldata$unique)){
-        if (n == 1) {
-          data_i <- filter(ldata, ldata$unique == r)[s:t, ]
-          n = n + 1
-        } else {
-          data_i <- rbind(data_i, filter(ldata, ldata$unique == r)[s:t, ])
-          n = n + 1
-          } }
-    
-        #Defining priors
-        prior_sensitivity =  c(
-        prior(normal(0,0.1), class = "b", coef = "dif_blue"),
-        prior(normal(0,0.2), class = "Intercept"),
-        prior(normal(0,0.1), class = "sd", coef = "dif_blue", group = "unique"),
-        prior(normal(0,0.2), class = "sd", coef = "Intercept", group = "unique")
-      )
-    
-        #Making the model - using answer
-        m_sensitivity <- brm(
-        answer ~ dif_blue + (1+dif_blue|unique),
-        data = data_i,
-        prior = prior_sensitivity,
-        family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-        seed = 123,# Adding a seed makes results reproducible.
-        cores=2,
-        chains=2,
-        #control = list(adapt_delta = 0.9)
-        )
-        
+    #Making the model - using answer
+    m_sensitivity <- brm(
+      sensitivity_f,
+      data = data_i,
+      prior = prior_sensitivity,
+      family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
+      seed = 123,# Adding a seed makes results reproducible.
+      cores = 2,
+      chains = 2,
+      #control = list(adapt_delta = 0.9)
+    )
     
     ###SAVING ESTIMATES
     
@@ -266,19 +261,18 @@ for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it i
     
     colnames(sensitivity_scores_roll)[k+2] <- i
     
-} }
-    
-   
-
+  } 
+}
 ```
 
 #Write a csv-file with the sensitivity scores
 ```{r write and read csv, eval = FALSE}
   
-#write.csv(sensitivity_scores_roll, file = "sensitivity_scores_rolling.csv")
+#write.csv(sensitivity_scores_roll, file = here("Gender_bias_Study_1","data","sensitivity_scores_rolling.csv"))
 
 #Loading the sensitivity scores again?
-sensitivity_scores_roll <- read.csv("sensitivity_scores_rolling.csv")
+sensitivity_scores_roll <- read.csv(
+  here("Gender_bias_Study_1","data","sensitivity_scores_rolling.csv"))
 ```
 
 #Merge the sensitivity scores with the existing data frame
@@ -299,7 +293,10 @@ sensitivity_scores <- merge(ldata, mdata, by = c("unique", "Trial"), all.x = TRU
 
 ```{r make wide to merge with disagree data}
 #Subsetting to include only relevant columns
-sensitivity_scores <- select(sensitivity_scores, -c("GroupNumber", "dif_blue","answer", "joint_answer", "Correct", "Correct_joint", "dif_blue_abs"))
+sensitivity_scores <- select(sensitivity_scores, 
+                             -c("GroupNumber", "dif_blue","answer", 
+                                "joint_answer", "Correct", "Correct_joint",
+                                "dif_blue_abs"))
 
 #Dividing into left and right data
 sensitivity_scores_right <- filter(sensitivity_scores, Side == "Right")
@@ -407,9 +404,11 @@ data_long$Subject <- gsub(".*_", "", data_long$Subject)
 
 #Write CSV with sensitivity scores and clean data
 ```{r}
-write.csv(data_long, file = "data_long_sensitivity.csv")
+write.csv(data_long, file = 
+            here("Gender_bias_Study_1","data", "data_long_sensitivity.csv")
 
-data_long <- read.csv("data_long_sensitivity.csv")
+data_long <- read.csv(
+  here("Gender_bias_Study_1","data","data_long_sensitivity.csv")
 ```
 
 
@@ -433,6 +432,7 @@ data_disagree_long$Subject <- gsub(".*_", "", data_disagree_long$Subject)
 
 #Write CSV with sensitivity scores and clean data, only disagree
 ```{r}
-write.csv(data_disagree_long, file = "data_disagree_long_sensitivity.csv")
+write.csv(data_disagree_long, file = 
+            here("Gender_bias_Study_1","data","data_disagree_long_sensitivity.csv")
 ```
 
