@@ -31,14 +31,14 @@ pacman::p_load(
 
 ```{r loading main data include = FALSE}
 #Listing files in path
-files <- list.files(path = here("Gender_bias_study_1", "data"))
+files <- list.files(path = here("Gender_bias_study_1", "data", "raw"))
 
 #Create empty data frame
 data <- data.frame(matrix(ncol = 36, nrow = 0))
 
 #Looping through data files and inserting in dataframe
 for (i in files) {
-  d <- read.delim(file = paste(here("Gender_bias_study_1", "data"),"/", i, sep = ""), sep = ",", header = TRUE)
+  d <- read.delim(file = paste(here("Gender_bias_study_1", "data", "raw"),"/", i, sep = ""), sep = ",", header = TRUE)
   data = rbind(data,d)
 }
 
@@ -47,14 +47,14 @@ for (i in files) {
 ```{r loading data with different amount of trials}
 
 #Listing files in directory
-kiri_files <- list.files(path = here("Gender_bias_study_1", "kiri"), pattern = "*.csv") 
+kiri_files <- list.files(path = here("Gender_bias_study_1", "data", "kiri"), pattern = "*.csv") 
 
 #Creating empty data frame
 kiri_data <- data.frame(matrix(ncol = 35, nrow = 0))
 
 #Looping through Kiri data 
 for (i in kiri_files) {
-  d <- read.delim(file = paste(here("Gender_bias_study_1", "kiri"),"/", i, sep = ""), sep = ",", header = TRUE, stringsAsFactors = FALSE)
+  d <- read.delim(file = paste(here("Gender_bias_study_1","data", "kiri"),"/", i, sep = ""), sep = ",", header = TRUE, stringsAsFactors = FALSE)
   kiri_data = rbind(kiri_data, d)
 }
 
@@ -124,7 +124,10 @@ data_a$Response_right <- ifelse(data_a$Response_right < 0, 0,1)
 
 #Create CSV
 ```{r}
-write.csv(data_a, file = "anonymised_data.csv")
+write.csv(data_a, file = here(
+  "Gender_bias_study_1",
+  "data",
+  "anonymised_data.csv"))
 
 ```
 
