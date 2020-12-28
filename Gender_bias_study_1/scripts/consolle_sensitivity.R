@@ -1,16 +1,3 @@
----
-title: "Preprocessing"
-author: "MM"
-date: "2/5/2019"
-output: word_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-#Loading packages
-```{r loading packages, include = FALSE}
 pacman::p_load(
   brms,
   tidyverse,
@@ -19,11 +6,6 @@ pacman::p_load(
   LaplacesDemon,
   tidyr,
   reshape2)
-
-```
-
-#Loading and processing data 
-```{r}
 
 data <- read.csv(
   here("Gender_bias_study_1", "data", "anonymised_data.csv")) %>%
@@ -43,11 +25,6 @@ data <- read.csv(
     right_answer = Response_right,
     left_answer = Response_left
   )
-```
-
-
-##Adding variables: Agree, chosen leader and gender
-```{r coding for leader/follower}
 
 data <- data %>%
   mutate(
@@ -69,18 +46,13 @@ data <- data %>%
                            ifelse(Leader_gender =="Female", 1, NA)),
     #create column that specifies the gender of the follower
     Follower_gender = ifelse(chosen_leader == "Left_lead",
-                           as.character(Gender_right),
-                           ifelse(chosen_leader == "Right_lead",
-                                  as.character(Gender_left),
-                                  NA)),
+                             as.character(Gender_right),
+                             ifelse(chosen_leader == "Right_lead",
+                                    as.character(Gender_left),
+                                    NA)),
     Follower_gender = ifelse(Follower_gender == "Male", 0,
-                           ifelse(Follower_gender =="Female", 1, NA)),
+                             ifelse(Follower_gender =="Female", 1, NA)),
   )
-```
-
-##Adding variable: Leader behaviour
-
-```{r Did the leader stick?}
 #Creating column of 0's
 data$leader_behaviour <- 0 
 
@@ -104,42 +76,28 @@ data$leader_behaviour[data$leader_behaviour == "surrender"] <- 1
 
 data$leader_behaviour[data$leader_behaviour == "stick"] <- 0
 
-```
-
-
-```{r adding trial variable to dataset in wide format}
 #Creating a trial variable
 n = 1
 p = NULL
 data_j = NULL
- for (p in unique(data$GroupNumber)){
-   if (n == 1) {
-     data_j <- filter(data, data$GroupNumber == p)
-     data_j <- cbind(data_j, as.data.frame(1:sum(complete.cases(data_j$GroupNumber))))
-     print(sum(complete.cases(data_j$GroupNumber)))
-     colnames(data_j)[44] <- "Trial"
-     n = n + 1
-     } else {
-     data_j <- rbind(data_j,mutate(filter(data, data$GroupNumber == p), Trial = 1:sum(complete.cases(filter(data, data$GroupNumber == p)$GroupNumber))))
-     print(sum(complete.cases(filter(data, data$GroupNumber == p)$GroupNumber)))
-     n = n + 1
-   }
- }
+for (p in unique(data$GroupNumber)){
+  if (n == 1) {
+    data_j <- filter(data, data$GroupNumber == p)
+    data_j <- cbind(data_j, as.data.frame(1:sum(complete.cases(data_j$GroupNumber))))
+    print(sum(complete.cases(data_j$GroupNumber)))
+    colnames(data_j)[44] <- "Trial"
+    n = n + 1
+  } else {
+    data_j <- rbind(data_j,mutate(filter(data, data$GroupNumber == p), Trial = 1:sum(complete.cases(filter(data, data$GroupNumber == p)$GroupNumber))))
+    print(sum(complete.cases(filter(data, data$GroupNumber == p)$GroupNumber)))
+    n = n + 1
+  }
+}
 
 data = data_j
 
 #remove extra trials (above 127) to have equal number of trials for all participants
 data <- filter(data, data$Trial<=127)
-```
-
-
-
-#Sensitivity scores, partial pooling
-We need one column containing answer from both left and right in order to allow pooling between all participants
-
-##Long format
-```{r making long format, include = FALSE}
-
 #Subsetting the left data
 left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, left_answer, joint_answer, Correct_left, Correct_joint, dif_blue_abs, Trial))
 
@@ -168,12 +126,6 @@ ldata <- rbind(left, right)
 #Setting NA in correct answers
 ldata$Correct_joint[is.na(ldata$joint_answer)] <- NA
 
-```
-
-
-##Modelling sensitivity scores with a rolling window
-```{r rolling window sensitivity model, eval = FALSE}
-
 #Making a number of iterations variable
 n = 1
 s = 1
@@ -186,11 +138,11 @@ sensitivity_f <- bf(answer ~ 1 + mo(dif_blue) + (1 + mo(dif_blue) | unique))
 get_prior(sensitivity_f,ldata,family=bernoulli)
 ### Defining priors
 prior_sensitivity =  c(
-      prior(normal(0,2), class = "Intercept"),
-      prior(normal(0,0.3), class = "b", coef = "modif_blue"),
-      prior(normal(0,1), class = "sd", coef = "modif_blue", group = "unique"),
-      prior(normal(0,1), class = "sd", coef = "Intercept", group = "unique")
-    )
+  prior(normal(0,2), class = "Intercept"),
+  prior(normal(0,0.3), class = "b", coef = "modif_blue"),
+  prior(normal(0,1), class = "sd", coef = "modif_blue", group = "unique"),
+  prior(normal(0,1), class = "sd", coef = "Intercept", group = "unique")
+)
 
 ###Making a loop for individual slope
 for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it is the biggest amount of trials 
@@ -257,23 +209,13 @@ for (i in unique(ldata$Trial)){ #Loop through number of trials, 127 because it i
     colnames(sensitivity_scores_roll)[k+2] <- i
     
   } 
+  write.csv(sensitivity_scores_roll, file = here("Gender_bias_study_1","data","sensitivity_scores_rolling.csv"))
+  
 }
 
-```
 
-#Write a csv-file with the sensitivity scores
-```{r write and read csv, eval = FALSE}
-  
-#write.csv(sensitivity_scores_roll, file = here("Gender_bias_Study_1","data","sensitivity_scores_rolling.csv"))
+write.csv(sensitivity_scores_roll, file = here("Gender_bias_study_1","data","sensitivity_scores_rolling.csv"))
 
-#Loading the sensitivity scores again?
-sensitivity_scores_roll <- read.csv(
-  here("Gender_bias_Study_1","data","sensitivity_scores_rolling.csv"))
-```
-
-#Merge the sensitivity scores with the existing data frame
-```{r merge the new results with the long data frame}
-sensitivity_scores_roll <-read.csv(file = here("Gender_bias_study_1","data","sensitivity_scores_rolling.csv"))
 
 #Reshaping the data
 mdata <- melt(sensitivity_scores_roll, id.vars=c("unique"), measure.vars = c(colnames(sensitivity_scores_roll)[3:120]), variable.name = "Trial", value.name = "Sensitivity_roll")
@@ -284,11 +226,6 @@ mdata$Trial <-str_replace_all(mdata$Trial, "X", "")
 #Merge ldata with sensitivity scores
 sensitivity_scores <- merge(ldata, mdata, by = c("unique", "Trial"), all.x = TRUE, all.y = TRUE) #Insert NAs on trials lower than 10
 
-```
-
-#Transforming the data into wide format
-
-```{r make wide to merge with disagree data}
 #Subsetting to include only relevant columns
 sensitivity_scores <- select(sensitivity_scores, 
                              -c("GroupNumber", "dif_blue","answer", 
@@ -321,12 +258,6 @@ data <- merge(data, sensitivity_scores_left, by = c("unique_ID_left", "Trial_lef
 data <- merge(data, sensitivity_scores_right, by = c("unique_ID_right", "Trial_right"))
 
 
-```
-
-
-#Adding variable: Skill difference
-```{r calculate skill difference}
-
 data$skill_dif <- 0 #Creating column of 0
 
 
@@ -341,13 +272,7 @@ data$skill_dif_c <- (data$skill_dif)-1
 data$skill_dif[data$chosen_leader == "Agree"] <- NA 
 data$skill_dif_c[data$chosen_leader == "Agree"] <- NA 
 
-```
 
-#Making long format
-
-##Subsetting left data
-```{r}
-#Subset to left data
 data_left <- subset(data, select = c(GroupNumber, unique_ID_left, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, skill_dif_c, leader_behaviour, Sensitivity_roll_left, Gender_left, left_answer, Trial_left)) #take all data for left participant
 
 data_left$leader_behaviour[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
@@ -356,10 +281,6 @@ data_left$Follower_gender[data_left$chosen_leader != 'Left_lead'] <- NA #insert 
 data_left$skill_dif[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
 data_left$skill_dif_c[data_left$chosen_leader != 'Left_lead'] <- NA #insert NAs for chosen leader if not left
 
-```
-
-##Subsetting right data
-```{r}
 #Subset right data
 data_right <- subset(data, select = c(GroupNumber, unique_ID_right, dif_blue, dif_blue_abs, chosen_leader, Leader_gender, Follower_gender, skill_dif, skill_dif_c, leader_behaviour, Sensitivity_roll_right, Gender_right, right_answer, Trial_right)) #Subsetting right data
 
@@ -372,10 +293,6 @@ data_right$Follower_gender[data_right$chosen_leader != 'Right_lead'] <- NA #inse
 data_right$skill_dif[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
 
 data_right$skill_dif_c[data_right$chosen_leader != 'Right_lead'] <- NA #insert NAs for chosen leader if not right
-```
-
-##Merging data frames
-```{r make long format}
 
 #rename columns to not contain left or right
 names(data_left) <- gsub(pattern = "_left", replacement = "", x = names(data_left))
@@ -387,49 +304,22 @@ names(data_right) <- gsub(pattern = "right_", replacement = "", x = names(data_r
 #Rbinding left and right data
 data_long <- rbind(data_left, data_right)
 
-```
-
-
-
-```{r}
 #remove the groupnumber from subject name to account for within participant variation
 data_long$Subject <- as.character(data_long$unique_ID)
 
 data_long$Subject <- gsub(".*_", "", data_long$Subject)
-```
 
-
-#Write CSV with sensitivity scores and clean data
-```{r}
 write.csv(data_long, file = 
             here("Gender_bias_study_1","data", "data_long_sensitivity.csv"))
-
+          
 data_long <- read.csv(
-  here("Gender_bias_study_1","data","data_long_sensitivity.csv"))
-```
+      here("Gender_bias_study_1","data","data_long_sensitivity.csv"))
 
-
-#Removing agree-trials
-```{r}
 #Removing all agree trials
 data_disagree_long <- na.omit(data_long)
 
-```
-
-
-#Cleaning the long data
-```{r}
-#remove the groupnumber from subject name to account for within participant variation
 data_disagree_long$Subject <- as.character(data_disagree_long$unique_ID)
-
 data_disagree_long$Subject <- gsub(".*_", "", data_disagree_long$Subject)
-
-```
-
-
-#Write CSV with sensitivity scores and clean data, only disagree
-```{r}
 write.csv(data_disagree_long, file = 
-            here("Gender_bias_study_1","data","data_disagree_long_sensitivity.csv"))
-```
-
+                        here("Gender_bias_study_1","data","data_disagree_long_sensitivity.csv"))
+                      

@@ -29,7 +29,7 @@ pacman::p_load(
 #read csv files with estimates
 data <- read.csv(
   here("Gender_bias_study_1", "data",
-       "data_disagree_long_sensitivity.csv"))[,3:17] %>%
+       "data_disagree_long_sensitivity.csv")) %>%
   mutate(
     Follower_gender = as.factor(Follower_gender),
     Leader_gender = as.factor(Leader_gender)
@@ -46,7 +46,7 @@ data_long <- read.csv(here("Gender_bias_study_1", "data",
 # Defining formula
 basic_m <- bf(
   leader_behaviour ~ 0 + Leader_gender : Follower_gender + 
-    (0 + Follower_gender + Follower_gender:skill_dif_c | Subject))
+    (0 + Follower_gender | gr(Subject, by = Leader_gender)))
 
 #Defining priors
 prior_basic <- c(
@@ -96,10 +96,10 @@ ggplot(Posterior) + theme_classic() +
 
 ggplot(Posterior) + theme_classic() +
   geom_density(aes(prior_sd_Subject), fill="darkred",alpha=0.3) +
-  geom_density(aes(`sd_Subject__Follower_gender0`), fill="darkblue",alpha=0.3) +
-  geom_density(aes(`sd_Subject__Follower_gender1`), fill="darkblue",alpha=0.3) +
-  geom_density(aes(`sd_Subject__Follower_gender0:skill_dif_c`), fill="darkgreen",alpha=0.3) +
-  geom_density(aes(`sd_Subject__Follower_gender1:skill_dif_c`), fill="darkgreen",alpha=0.3) 
+  geom_density(aes(`sd_Subject__Follower_gender0:Leader_gender0`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender0:Leader_gender1`), fill="darkgreen",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender1:Leader_gender0`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender1:Leader_gender1`), fill="darkgreen",alpha=0.3)
 
 # Model summary and plots
 summary(m_basic)
@@ -115,7 +115,7 @@ marginal_effects(m_basic)
 full_f <- bf(
   leader_behaviour ~ 0 + Leader_gender:Follower_gender +
     Leader_gender:Follower_gender:skill_dif_c + 
-    (0 + Follower_gender + Follower_gender:skill_dif_c | Subject ))
+    (0 + Follower_gender + Follower_gender:skill_dif_c | gr(Subject, by = Leader_gender )))
 
 get_prior(full_f, data = data, family = "bernoulli")
 
@@ -182,14 +182,32 @@ ggplot(Posterior) + theme_classic() +
 
 ggplot(Posterior) + theme_classic() +
   geom_density(aes(prior_sd_Subject), fill="darkred",alpha=0.3) +
-  geom_density(aes(`sd_Subject__Follower_gender0`), fill="darkblue",alpha=0.3) +
-  geom_density(aes(`sd_Subject__Follower_gender1`), fill="darkblue",alpha=0.3) +
-  geom_density(aes(`sd_Subject__Follower_gender0:skill_dif_c`), fill="darkgreen",alpha=0.3) +
-  geom_density(aes(`sd_Subject__Follower_gender1:skill_dif_c`), fill="darkgreen",alpha=0.3) 
+  geom_density(aes(`sd_Subject__Follower_gender0:Leader_gender0`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender1:Leader_gender0`), fill="darkblue",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender0:Leader_gender1`), fill="darkgreen",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender1:Leader_gender1`), fill="darkgreen",alpha=0.3)
+  
+ggplot(Posterior) + theme_classic() +
+  geom_density(aes(prior_sd_Subject), fill="darkred",alpha=0.3) +  
+  geom_density(aes(`sd_Subject__Follower_gender0:skill_dif_c:Leader_gender0`), fill="darkgreen",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender1:skill_dif_c:Leader_gender0`), fill="darkgreen",alpha=0.3) +
+    geom_density(aes(`sd_Subject__Follower_gender0:skill_dif_c:Leader_gender1`), fill="darkgreen",alpha=0.3) +
+  geom_density(aes(`sd_Subject__Follower_gender1:skill_dif_c:Leader_gender1`), fill="darkgreen",alpha=0.3) 
 
 summary(m_full)
 plot(m_full)
 conditional_effects(m_full)
+
+# Interaction
+hypothesis(m_full, "Leader_gender1:Follower_gender0:skill_dif_c - Leader_gender0:Follower_gender0:skill_dif_c < Leader_gender1:Follower_gender1:skill_dif_c - Leader_gender0:Follower_gender1:skill_dif_c")
+
+# Main effect of woman leader
+hypothesis(m_full, "(Leader_gender1:Follower_gender0:skill_dif_c + Leader_gender1:Follower_gender1:skill_dif_c)/2>0")
+# No interaction in woman
+hypothesis(m_full, "Leader_gender1:Follower_gender0:skill_dif_c < Leader_gender1:Follower_gender1:skill_dif_c")
+
+# Men differenting
+hypothesis(m_full, "Leader_gender0:Follower_gender0:skill_dif_c > Leader_gender0:Follower_gender1:skill_dif_c")
 ```
 
 
@@ -273,12 +291,14 @@ nd <-
   expand.grid(tibble(
          Follower_gender = factor(0:1) %>% rep(., times = 10),
          Leader_gender = factor(0:1) %>% rep(., times = 10),
-         skill_dif_c = 0,
-         Subject = NA))
+         skill_dif_c = 0)) %>%
+  mutate(
+    Subject = ifelse(Leader_gender==0, 1000, 2000)
+  )
 
 #Predicting new values from the basic model
 pred <-
-  predict(m_full, newdata = nd) %>%  # we can use the same nd data from last time
+  predict(m_full, newdata = nd, allow_new_levels = T) %>%  # we can use the same nd data from last time
   as_tibble() %>%
   bind_cols(nd)
 
@@ -328,7 +348,13 @@ mean(Posterior$H1bWorse)
 #testing the effect of inv.logit before hyp
 hypothesis(m_full, "(inv.logit(Leader_gender0:Follower_gender0) + inv.logit(Leader_gender1:Follower_gender0))/2*100 > (inv.logit(Leader_gender0:Follower_gender1) + inv.logit(Leader_gender1:Follower_gender1))/2*100")
 
+hypothesis(m_full, "(inv.logit(Follower_gender0:Leader_gender0) + inv.logit(Follower_gender0:Leader_gender1))/2*100 > (inv.logit(Follower_gender1:Leader_gender0) + inv.logit(Follower_gender1:Leader_gender1))/2*100", scope = "ranef", group="Subject")
+
+ranef(m_full)$Subject
+
 hypothesis(m_full, "(inv.logit(Leader_gender0:Follower_gender0) - inv.logit(Leader_gender0:Follower_gender1)) > (inv.logit(Leader_gender1:Follower_gender0) - inv.logit(Leader_gender1:Follower_gender1))")
+
+
 ```
 
 ##H1b: Plotting
@@ -367,31 +393,136 @@ main_plot
 
 ```
 
+## Individual level effects
+```{r}
+
+x <- unique(data[,c("Subject","Leader_gender")])
+
+
+MaleFollower_draws <- spread_draws(
+  m_full, r_Subject[Subject,Follower_gender0], `b_Leader_gender0:Follower_gender0`, `b_Leader_gender1:Follower_gender0`)
+MaleFollower_draws <- merge(MaleFollower_draws, x) 
+MaleFollower_draws$Estimate[MaleFollower_draws$Leader_gender=="0"]  <- MaleFollower_draws$r_Subject[MaleFollower_draws$Leader_gender=="0"] + MaleFollower_draws$`b_Leader_gender0:Follower_gender0`[MaleFollower_draws$Leader_gender=="0"]
+MaleFollower_draws$Estimate[MaleFollower_draws$Leader_gender=="1"]  <- MaleFollower_draws$r_Subject[MaleFollower_draws$Leader_gender=="1"] + MaleFollower_draws$`b_Leader_gender1:Follower_gender0`[MaleFollower_draws$Leader_gender=="1"]
+
+MaleFollower_draws <- MaleFollower_draws %>%
+  rename(MaleFollower = Estimate) %>%
+  subset(select = -Follower_gender0) %>%
+  subset(select = -`b_Leader_gender0:Follower_gender0`) %>%
+  subset(select = -`b_Leader_gender1:Follower_gender0`)
+
+FemaleFollower_draws <- spread_draws(
+  m_full, r_Subject[Subject,Follower_gender1],`b_Leader_gender0:Follower_gender1`, `b_Leader_gender1:Follower_gender1`)
+FemaleFollower_draws <- merge(FemaleFollower_draws, x) 
+
+FemaleFollower_draws$Estimate[FemaleFollower_draws$Leader_gender=="0"]  <- FemaleFollower_draws$r_Subject[FemaleFollower_draws$Leader_gender=="0"] + FemaleFollower_draws$`b_Leader_gender0:Follower_gender1`[FemaleFollower_draws$Leader_gender=="0"]
+FemaleFollower_draws$Estimate[FemaleFollower_draws$Leader_gender=="1"]  <- FemaleFollower_draws$r_Subject[FemaleFollower_draws$Leader_gender=="1"] + FemaleFollower_draws$`b_Leader_gender1:Follower_gender1`[FemaleFollower_draws$Leader_gender=="1"]
+
+FemaleFollower_draws <- FemaleFollower_draws %>%
+  rename(FemaleFollower = Estimate) %>%
+  subset(select = -Follower_gender1) %>%
+  subset(select = -`b_Leader_gender0:Follower_gender1`) %>%
+  subset(select = -`b_Leader_gender1:Follower_gender1`)
+
+FemaleFollower_draws$MaleFollower <- MaleFollower_draws$MaleFollower
+
+
+FemaleFollower_draws %>% group_by(
+  Leader_gender, Subject
+) %>% dplyr::summarize(
+  Male = mean(MaleFollower),
+  Female = mean(FemaleFollower),
+  Difference = mean(MaleFollower - FemaleFollower),
+  cred = sum(MaleFollower - FemaleFollower>0)/n())
+
+for (s in unique(data$Subject)){
+  x <- FemaleFollower_draws %>% subset(Subject==s)
+  
+  y <- data.frame(
+    Male = mean(x$MaleFollower),
+    Female = mean(x$FemaleFollower),
+    Difference = mean(x$MaleFollower - x$FemaleFollower)
+  )
+  if (exists("summ")){summ <- rbind(summ, y)} else {summ<-y}
+}
+summ
+
+newdata <- data %>% group_by(Leader_gender, Follower_gender, Subject) %>%
+  summarize(skill_dif_c = 0)
+
+newdata$Preds <- predict(m_full, newdata = newdata)[,1]
+
+ggplot(newdata, aes(as.numeric(Follower_gender), Preds, color=Subject)) +
+  theme_classic() + facet_grid(.~Leader_gender) +
+  geom_smooth(method=lm)
+
+x <- data %>% 
+  group_by(Leader_gender, Subject) %>%
+  summarize(
+    SurrenderMan = mean(Preds[Follower_gender==0]),
+    SurrenderWoman = mean(Preds[Follower_gender==1]),
+    GenderBias = mean(Preds[Follower_gender==0] - Preds[Follower_gender==1]) )
+
+x %>% group_by(Leader_gender) %>%
+  summarize(sum(GenderBias < 0))
+
+newdata2 <- data %>% group_by(Leader_gender, Follower_gender, Subject) %>%
+  summarize(skill_dif_c = c(-10, - 5, 0, 5, 10))
+
+newdata2$Preds <- predict(m_full, newdata = newdata2)[,1]
+
+ggplot(newdata2, aes(skill_dif_c, Preds, color=Follower_gender)) +
+  geom_point(alpha=0.3) +
+  geom_smooth() +
+  facet_grid(.~Leader_gender) +
+  theme_classic()
+
+ggplot(newdata2, aes(skill_dif_c, Preds, color=Subject)) +
+  geom_point(alpha=0.3) +
+  geom_smooth() +
+  facet_grid(Follower_gender~Leader_gender) +
+  theme_classic()
+
+newdata2 %>% group_by(Leader_gender, skill_dif_c) %>%
+  summarize(mean(Preds))
+
+```
+
 
 #Alternative hypothesis: Are men better than women?
 ##Modelling: Are men better than women?
 ```{r}
 #Defining priors
 prior_mf <- c(
-  prior(normal(0, 0.2),class="Intercept"),
+  #prior(normal(0, 0.2),class="Intercept"),
   prior(normal(0,0.1),class="b"),
-  prior(normal(0,0.1), class= "sd", coef = "dif_blue", group = "Subject"),
+  prior(normal(0,0.1), class= "sd", coef = "modif_blue", group = "Subject"),
   prior(normal(0,0.2), class= "sd", coef = "Intercept", group = "Subject")
 )
 
 
 #prior predictive check
-prior_check_mf <- brm(answer ~ dif_blue*Gender + (1+dif_blue|Subject), prior = prior_mf, data = data_long, sample_prior = "only",iter = 4000, family = "bernoulli", chains = 2, cores = 2)
+prior_check_mf <- brm(answer ~ 1 + Gender + mo(dif_blue) + Gender:mo(dif_blue) +
+                        (1 + mo(dif_blue) | gr(Subject,by=Gender)), 
+                      prior = prior_mf, 
+                      data = data_long, 
+                      sample_prior = "only",
+                      iter = 4000, 
+                      family = "bernoulli", 
+                      chains = 2, cores = 2)
 
 pp_check(prior_check_mf, nsamples = 100)
 
 # Model testing skill difference
 skill_mf <- brm(
-  answer ~ dif_blue*Gender + (1+dif_blue|Subject), 
+  answer ~ 0 + Gender + mo(dif_blue) + Gender:mo(dif_blue) +
+                        (1 + mo(dif_blue) | gr(Subject,by = Gender)), 
   data = data_long,
   prior = prior_mf,
   family = "bernoulli",
-  sample_prior=T,
+  sample_prior = T,
+  backend = "cmdstanr",
+  threads = threading(2),
   seed = 123, # Adding a seed makes results reproducible.
   cores=2,
   chains=2
@@ -407,7 +538,7 @@ marginal_effects(skill_mf)
 ##Hypothesis testing: Men perform better than women
 ```{r}
 #Men perform better than women
-hypothesis(skill_mf, "dif_blue < (dif_blue+dif_blue:GenderMale)")
+hypothesis(skill_mf, "modif_blue:GenderMale < 0", class="bsp")
 
 hypothesis(skill_mf, "dif_blue > (dif_blue+dif_blue:GenderMale)")
 
@@ -415,6 +546,20 @@ hypothesis(skill_mf, "dif_blue = (dif_blue+dif_blue:GenderMale)")
 
 #No
 
+data_long$PredsSkill <- predict(skill_mf)[,1]
+
+ggplot(data_long, aes(Gender, PredsSkill, fill = Gender)) +
+  theme_classic() +
+    labs(x = "Gender", y = "Individual accuracy", title = "Gender differences in performance") +
+  geom_boxplot(aes(x = Gender, PredsSkill) , width = 0.5) + 
+  theme(legend.position = "none", panel.grid.minor = element_blank()) + 
+  geom_violin(aes(x = Gender, y = PredsSkill), trim = FALSE, width =1, alpha = 0.2) + 
+  geom_hline(yintercept= 0.5, color = "black", linetype = "dashed", alpha = 0.8) + 
+  scale_fill_manual(values=c("palegreen3", "gold2"))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+data_long %>% group_by(Gender) %>% summarize(mean(PredsSkill))
+conditional_effects(skill_mf)
 ```
 
 
