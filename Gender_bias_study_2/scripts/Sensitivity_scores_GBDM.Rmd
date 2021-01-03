@@ -11,15 +11,29 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #Setting working directory and loading data
 ```{r loading packages and data}
-library(pacman)
-p_load(plotly, jpeg, tm, brms, tidyverse, tidybayes, ggplot2, LaplacesDemon, rethinking, tidyr, reshape2, tibble, stringr, here, data.table, mousetrap, base)
 
-#setting working directory
-setwd("~/gender_bias_in_decision_making/Gender_bias_study_2")
+pacman::p_load(
+  plotly, 
+  jpeg, 
+  tm, 
+  brms, 
+  tidyverse, 
+  tidybayes, 
+  LaplacesDemon, 
+  rethinking, 
+  tidyr, 
+  reshape2, 
+  stringr, 
+  here, 
+  data.table, 
+  mousetrap, 
+  base)
 
 #Loading data
-data_db <- read.csv("data_GBDM.csv")[,2:40]
-disagree_db <- read.csv("disagree_data_GBDM.csv")[,2:42]
+data_db <- read.csv(
+  here("Gender_bias_study_2","data","data_GBDM.csv"))[,2:40]
+disagree_db <- read.csv(
+  here("Gender_bias_study_2","data","disagree_data_GBDM.csv"))[,2:42]
 
 ```
 
@@ -66,7 +80,10 @@ long_data_db <- rbind(left, right)
 #Creating csv-file
 ```{r create csv file with all trials}
 
-write.csv(long_data_db, file = "data_long_format_GBDM.csv")
+write.csv(long_data_db, 
+          file = here("Gender_bias_study_2",
+                      "data", 
+                      "data_long_format_GBDM.csv"))
 ```
 
 
@@ -79,6 +96,18 @@ n = 1
 s = 1
 t = 10
 k = 0
+
+## Defining the model
+sensitivity_f <- bf(
+  response_dummy ~ mo(diff) + (1 + mo(diff) | SubjectID_unique))
+
+### Defining priors
+      prior_sensitivity =  c(
+      prior(normal(0, 2), class = "Intercept"),
+      prior(normal(0, 0.3), class = "b", coef = "modiff"),
+      prior(normal(0, 1), class = "sd", coef = "modiff", group = "SubjectID_unique"),
+      prior(normal(0,1), class = "sd", coef = "Intercept", group = "SubjectID_unique")
+    )
 
 ###Making a loop for individual slope
 for (i in 1:96){ #Loop through number of trials
@@ -93,24 +122,18 @@ for (i in 1:96){ #Loop through number of trials
           n = n + 1
           } }
     
-      #Defining priors
-      prior_sensitivity =  c(
-      prior(normal(0,0.1), class = "b", coef = "diff"),
-      prior(normal(0,0.2), class = "Intercept"),
-      prior(normal(0,0.1), class = "sd", coef = "diff", group = "SubjectID_unique"),
-      prior(normal(0,0.2), class = "sd", coef = "Intercept", group = "SubjectID_unique")
-    )
-    
       #Making the model - using answer
       m_sensitivity <- brm(
-      response_dummy ~ diff + (1+diff|SubjectID_unique),
+      sensitivity_f,
       data = data_i,
       prior = prior_sensitivity,
       family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
       seed = 123,# Adding a seed makes results reproducible.
-      cores=2,
-      chains=2,
-      #control = list(adapt_delta = 0.9)
+      cores = 2,
+      chains = 2,
+      backend = "cmdstanr",
+      threads = threading(2),
+      control = list(adapt_delta = 0.9)
       )
     
     
@@ -138,27 +161,9 @@ for (i in 1:96){ #Loop through number of trials
           n = n + 1
           } }
     
-        #Defining priors
-        prior_sensitivity =  c(
-        prior(normal(0,0.1), class = "b", coef = "diff"),
-        prior(normal(0,0.2), class = "Intercept"),
-        prior(normal(0,0.1), class = "sd", coef = "diff", group = "SubjectID_unique"),
-        prior(normal(0,0.2), class = "sd", coef = "Intercept", group = "SubjectID_unique")
-      )
-    
         #Making the model - using answer
-        m_sensitivity <- brm(
-        response_dummy ~ diff + (1+diff|SubjectID_unique),
-        data = data_i,
-        prior = prior_sensitivity,
-        family = "bernoulli", #As we had a binary outcome, we set this to "bernoulli"
-        seed = 123,# Adding a seed makes results reproducible.
-        cores=2,
-        chains=2,
-        #control = list(adapt_delta = 0.9)
-        )
+        m_sensitivity <- update(m_sensitivity, newdata = data_i)
         
-    
     ###SAVING ESTIMATES
     
     #Saving random effect for individual slope
@@ -179,10 +184,15 @@ for (i in 1:96){ #Loop through number of trials
 #Write a csv-file with the sensitivity scores
 ```{r write and read csv}
   
-write.csv(sensitivity_scores_roll, file = "sensitivity_scores_rolling.csv")
+write.csv(sensitivity_scores_roll, 
+          file = here("Gender_bias_study_2",
+                      "data", 
+                      "sensitivity_scores_rolling.csv"))
 
 #Loading the sensitivity scores again?
-sensitivity_scores_roll <- read.csv("sensitivity_scores_rolling.csv")[,2:89]
+sensitivity_scores_roll <- read.csv(file = here("Gender_bias_study_2",
+                      "data", 
+                      "sensitivity_scores_rolling.csv"))[,2:89]
 ```
 
 #Merge the sensitivity scores with the existing data frame
@@ -219,7 +229,7 @@ long_data_db <- merge(data_j, mdata, by = c("SubjectID_unique", "Trial"), all.x 
 
 ```{r slopes for individuals in single plots, eval = FALSE}
 #Plot of individuals
-marginal_effects(
+conditonal_effects(
   m_sensitivity,
   "diff", 
   conditions = distinct(long_data_db, SubjectID_unique),
@@ -231,7 +241,7 @@ marginal_effects(
 
 ```{r marginal effects, classic, eval = FALSE }
 #Summarized plot
-marginal_effects(m_sensitivity)
+conditional_effects(m_sensitivity)
 ```
 
 #Transforming the data into wide format
@@ -264,8 +274,8 @@ sensitivity_scores_right <- subset(sensitivity_scores_right, select = -c(Side))
 sensitivity_scores_left <- subset(sensitivity_scores_left, select = -c(Side))
 
 #Renaming columns
-colnames(sensitivity_scores_left) <-  c("Sensitivity_roll_left", "Trial_left", "SubjectID_left_unique")
-colnames(sensitivity_scores_right) <-  c("Sensitivity_roll_right", "Trial_right", "SubjectID_right_unique")
+colnames(sensitivity_scores_left) <-  c( "Trial_left", "Sensitivity_roll_left","SubjectID_left_unique")
+colnames(sensitivity_scores_right) <-  c( "Trial_right", "Sensitivity_roll_right","SubjectID_right_unique")
 
 #Creating a column for trial to the right
 disagree_db$Trial_right <- disagree_db$Trial 
@@ -400,8 +410,13 @@ disagree_db_long$leader_behavior <- ifelse(disagree_db_long$leader_behavior == "
 #Write CSV
 ```{r creating CSV}
 
-write.csv(disagree_db_wide, file = "disagree_sensitivity_GBDM_wide_format.csv")
-write.csv(disagree_db_long, file = "disagree_sensitivity_GBDM_long_format.csv")
+write.csv(disagree_db_wide, 
+          file = here(
+            "Gender_bias_study_2", "data",
+            "disagree_sensitivity_GBDM_wide_format.csv"))
+write.csv(disagree_db_long, file = here(
+            "Gender_bias_study_2", "data",
+            "disagree_sensitivity_GBDM_long_format.csv"))
 
 ```
 

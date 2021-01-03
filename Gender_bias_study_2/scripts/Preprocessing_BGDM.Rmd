@@ -11,12 +11,21 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #Setting working directories and loading data
 ```{r loading packages and data}
-library(pacman)
-p_load(plotly, jpeg, tm, brms, tidyverse, tidybayes, ggplot2, LaplacesDemon, rethinking, tidyr, reshape2, tibble)
+
+pacman::p_load(plotly, 
+       jpeg, 
+       tm, 
+       brms, 
+       tidyverse, 
+       tidybayes, 
+       LaplacesDemon, 
+       rethinking, 
+       tidyr, 
+       reshape2,
+       here)
 
 #Setting working directory
-setwd("~/gender_bias_in_decision_making/Gender_bias_study_2")
-path_db = ("decision_data/")
+path_db = (here("Gender_bias_study_2","data", "raw"))
 
 #Listing files in path
 files <- list.files(path = path_db)
@@ -26,7 +35,10 @@ data_db <- data.frame(matrix(ncol = 30, nrow = 0))
 
 #Looping through data files and inserting in dataframe
 for (i in files) {
-  d <- read.delim(file = paste(path_db, i, sep = ""), sep = ",", header = TRUE)
+  d <- read.delim(
+    file = here("Gender_bias_study_2","data", "raw",i), 
+    sep = ",", 
+    header = TRUE)
   data_db = rbind(data_db,d)
 }
 
@@ -40,10 +52,17 @@ data_db <- subset(data_db, select = -c(X))
 
 ```{r make a column with unique group ID}
 #Creating a column with unique group ID's
-data_db$SubjectID_left <- as.character(data_db$SubjectID_left)
-data_db$SubjectID_right <- as.character(data_db$SubjectID_right)
+data_db <- data_db %>%
+  mutate(
+    SubjectID_left = as.character(SubjectID_left),
+    SubjectID_right = as.character(SubjectID_right),
+    group_id = as.character(paste(
+      SubjectID_left,
+      "_",
+      SubjectID_right, 
+      sep = ""))
+  )
 
-data_db$group_id <- as.character(paste(data_db$SubjectID_left,"_",data_db$SubjectID_right, sep = ""))
 ```
 
 ```{r make a column with unique subject ID}
@@ -155,8 +174,10 @@ disagree_db <- na.omit(data_j)
 #Write csv-files
 ```{r save clean data files, eval=F}
 
-write.csv(data_db, file = "data_GBDM.csv")
-write.csv(disagree_db, file = "disagree_data_GBDM.csv")
+write.csv(data_db, file = 
+            here("Gender_bias_study_2","data","data_GBDM.csv"))
+write.csv(disagree_db, file =
+            here("Gender_bias_study_2","data","disagree_data_GBDM.csv"))
 
 ```
 
